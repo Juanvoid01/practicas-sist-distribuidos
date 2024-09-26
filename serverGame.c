@@ -13,7 +13,6 @@ void sendMessageToPlayer(int socketClient, char *message)
 	}
 	bytes_sent = send(socketClient, message, l, 0);
 
-
 	if (bytes_sent == -1)
 	{
 		perror("Error sending message content\n");
@@ -23,7 +22,7 @@ void sendMessageToPlayer(int socketClient, char *message)
 
 void receiveMessageFromPlayer(int socketClient, char *message)
 {
-	printf("receiving message from server...\n");
+
 	int l;
 	int bytes_received = recv(socketClient, &l, sizeof(l), 0);
 
@@ -162,7 +161,7 @@ int main(int argc, char *argv[])
 
 	socketPlayer1 = accept(socketfd, (struct sockaddr *)&player1Address, &clientLength);
 
-	if(socketPlayer1 == -1)
+	if (socketPlayer1 == -1)
 	{
 		fprintf(stderr, "ERROR accept player1\n");
 		exit(1);
@@ -177,7 +176,7 @@ int main(int argc, char *argv[])
 
 	socketPlayer2 = accept(socketfd, (struct sockaddr *)&player2Address, &clientLength);
 
-	if(socketPlayer2 == -1)
+	if (socketPlayer2 == -1)
 	{
 		fprintf(stderr, "ERROR accept player2\n");
 		exit(1);
@@ -193,7 +192,6 @@ int main(int argc, char *argv[])
 
 	sendMessageToPlayer(socketPlayer2, player1Name);
 
-
 	initBoard(board);
 	endOfGame = FALSE;
 	currentPlayer = (tPlayer)(rand() % 2);
@@ -208,7 +206,7 @@ int main(int argc, char *argv[])
 			sendBoardToClient(socketPlayer2, board);
 
 			column = receiveMoveFromPlayer(socketPlayer1);
-			printf("columna Jugador 1 = %d",column);
+			printf("columna Jugador 1 = %d", column);
 		}
 		else
 		{
@@ -218,7 +216,7 @@ int main(int argc, char *argv[])
 			sendBoardToClient(socketPlayer2, board);
 
 			column = receiveMoveFromPlayer(socketPlayer2);
-			printf("columna Jugador 2 = %d",column);
+			printf("columna Jugador 2 = %d", column);
 		}
 
 		insertChip(board, currentPlayer, column);

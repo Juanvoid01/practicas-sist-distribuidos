@@ -2,36 +2,17 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build server",
+            "label": "build all",
             "type": "shell",
-            "command": "gcc",
-            "args": [
-                "-g", 
-                "serverGame.c",
-                "-o",
-                "serverGame"
-            ],
+            "command": "make",
+            "args": [],
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": ["$gcc"]
+            "problemMatcher": [
+                "$gcc"
+            ]
         },
-        {
-            "label": "build client",
-            "type": "shell",
-            "command": "gcc",
-            "args": [
-                "-g", 
-                "clientGame.c",
-                "-o",
-                "clientGame"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "problemMatcher": ["$gcc"]
-        }
     ]
 }

@@ -6,13 +6,13 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/serverGame",
-            "args": ["2000"],  // Pass port 2000 as the argument to the server
+            "args": ["2000"],  // Pass port 2000 to the server
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "preLaunchTask": "build server",
+            "preLaunchTask": "build all",  // Build both the server and client before launching
             "miDebuggerPath": "/usr/bin/gdb",
             "setupCommands": [
                 {
@@ -27,13 +27,13 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/clientGame",
-            "args": ["127.0.0.1", "2000"],  // Pass IP and port as arguments to the client
+            "args": ["127.0.0.1", "2000"],  // Pass IP and port to the client
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-            "preLaunchTask": "build client",
+            "preLaunchTask": "build all",  // Build both the server and client before launching
             "miDebuggerPath": "/usr/bin/gdb",
             "setupCommands": [
                 {
