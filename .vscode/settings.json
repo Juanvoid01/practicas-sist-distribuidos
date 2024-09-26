@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "clientgame.h": "c",
+        "utils.h": "c",
+        "gametypes.h": "c"
+    }
+}
