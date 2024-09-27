@@ -248,8 +248,6 @@ int main(int argc, char *argv[])
 		else
 		{
 			currentPlayer = switchPlayer(currentPlayer);
-			sendBoardToClient(socketPlayer1, board);
-			sendBoardToClient(socketPlayer2, board);
 		}
 	}
 
