@@ -50,9 +50,12 @@ void receiveBoard(int socketServer, tBoard board)
 
 void sendMoveToServer(int socketServer, unsigned int move)
 {
-	int l = sizeof(move);
-	send(socketServer, &l, sizeof(l), 0);
-	send(socketServer, &move, l, 0);
+	 int bytes_sent = send(socketServer, &move, sizeof(move), 0);
+    if (bytes_sent == -1 || bytes_sent != sizeof(move)) {
+        perror("Error sending move\n");
+    } else {
+        printf("Enviando movimiento: %u\n", move); // Para depuración
+    }
 }
 
 unsigned int receiveCode(int socketServer)
@@ -110,7 +113,7 @@ unsigned int readMove()
 		else
 			printf("Entered move is not correct. It must be a number between [0-6]\n");
 	}
-
+	printf("move: %d",move);
 	return move;
 }
 

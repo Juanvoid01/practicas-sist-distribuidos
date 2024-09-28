@@ -59,11 +59,20 @@ void sendBoardToClient(int socketClient, tBoard board)
 unsigned int receiveMoveFromPlayer(int socketClient)
 {
 	unsigned int move;
-	int l;
-	recv(socketClient, &l, sizeof(l), 0);
-	recv(socketClient, &move, l, 0);
+    int bytes_received = recv(socketClient, &move, sizeof(move), 0);
+    
+    if (bytes_received == -1) {
+        perror("Error receiving move\n");
+        return -1; // o algún valor que indiques como error
+    }
 
-	return move;
+    if (bytes_received != sizeof(move)) {
+        fprintf(stderr, "Received unexpected number of bytes: %d\n", bytes_received);
+        return -1; // Maneja el error de longitud
+    }
+    
+    printf("Movimiento recibido: %u\n", move); // Para depuración
+    return move;
 }
 
 int getSocketPlayer(tPlayer player, int player1socket, int player2socket)
@@ -231,7 +240,7 @@ int main(int argc, char *argv[])
 			sendBoardToClient(socketPlayer2, board);
 			endOfGame = TRUE;
 		}
-		if (checkWinner(board, player2))
+		else if (checkWinner(board, player2))
 		{
 			sendCodeToClient(socketPlayer1, GAMEOVER_LOSE);
 			sendCodeToClient(socketPlayer2, GAMEOVER_WIN);
