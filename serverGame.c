@@ -167,12 +167,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// Clear buffer
 	memset(player1Name, 0, STRING_LENGTH);
 
 	receiveMessageFromPlayer(socketPlayer1, player1Name);
-
-	printf("Nombre jugador1 recibido: %s\n", player1Name);
 
 	socketPlayer2 = accept(socketfd, (struct sockaddr *)&player2Address, &clientLength);
 
@@ -182,16 +179,15 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// Clear buffer
 	memset(player2Name, 0, STRING_LENGTH);
 
 	receiveMessageFromPlayer(socketPlayer2, player2Name);
-	printf("Nombre jugador2 recibido: %s\n", player2Name);
 
+	// Cross player names
 	sendMessageToPlayer(socketPlayer1, player2Name);
-
 	sendMessageToPlayer(socketPlayer2, player1Name);
 
+	// Init game
 	initBoard(board);
 	endOfGame = FALSE;
 	currentPlayer = (tPlayer)(rand() % 2);
@@ -202,21 +198,25 @@ int main(int argc, char *argv[])
 		{
 			sendCodeToClient(socketPlayer1, TURN_MOVE);
 			sendCodeToClient(socketPlayer2, TURN_WAIT);
+
+			sendMessageToPlayer(socketPlayer1, "Your turn, play a move");
 			sendBoardToClient(socketPlayer1, board);
+			sendMessageToPlayer(socketPlayer2, "Opponent turn, wait");
 			sendBoardToClient(socketPlayer2, board);
 
 			column = receiveMoveFromPlayer(socketPlayer1);
-			printf("columna Jugador 1 = %d", column);
 		}
 		else
 		{
 			sendCodeToClient(socketPlayer2, TURN_MOVE);
 			sendCodeToClient(socketPlayer1, TURN_WAIT);
-			sendBoardToClient(socketPlayer1, board);
+
+			sendMessageToPlayer(socketPlayer2, "Your turn, play a move");
 			sendBoardToClient(socketPlayer2, board);
+			sendMessageToPlayer(socketPlayer1, "Opponent turn, wait");
+			sendBoardToClient(socketPlayer1, board);
 
 			column = receiveMoveFromPlayer(socketPlayer2);
-			printf("columna Jugador 2 = %d", column);
 		}
 
 		insertChip(board, currentPlayer, column);

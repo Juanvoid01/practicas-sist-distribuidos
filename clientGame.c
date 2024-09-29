@@ -185,7 +185,6 @@ int main(int argc, char *argv[])
 	// Send player's name to the server
 	sendMessageToServer(socketfd, playerName);
 
-
 	// Clear buffer
 	memset(rivalName, 0, STRING_LENGTH);
 
@@ -209,44 +208,49 @@ int main(int argc, char *argv[])
 
 		if (code == TURN_WAIT)
 		{
-			// Clear buffer
+			memset(message, 0, STRING_LENGTH);
+			receiveMessageFromServer(socketfd, message);
 			memset(board, 0, BOARD_SIZE);
 			receiveBoard(socketfd, board);
-			printBoard(board, "Opponent move");
+			printBoard(board, message);
 		}
 		else if (code == TURN_MOVE)
 		{
+			memset(message, 0, STRING_LENGTH);
+			receiveMessageFromServer(socketfd, message);
+			memset(board, 0, BOARD_SIZE);
+			receiveBoard(socketfd, board);
+			printBoard(board, message);
+
 			move = readMove();
 			sendMoveToServer(socketfd, move);
 
-			printf("mensaje enviado = %d", move);
-			// Clear buffer
-			memset(board, 0, BOARD_SIZE);
-			receiveBoard(socketfd, board);
-			printBoard(board, "Your move");
 		}
 		else if (code == GAMEOVER_WIN)
 		{
-			// Clear buffer
+			memset(message, 0, STRING_LENGTH);
+			receiveMessageFromServer(socketfd, message);
 			memset(board, 0, BOARD_SIZE);
 			receiveBoard(socketfd, board);
-			printBoard(board, "Your win the game :)");
+			printBoard(board, message);
 			endOfGame = TRUE;
 		}
 		else if (code == GAMEOVER_LOSE)
 		{
-			// Clear buffer
+			memset(message, 0, STRING_LENGTH);
+			receiveMessageFromServer(socketfd, message);
 			memset(board, 0, BOARD_SIZE);
 			receiveBoard(socketfd, board);
-			printBoard(board, "Your lose the game :(");
+			printBoard(board, message);
 			endOfGame = TRUE;
 		}
 		else if (code == GAMEOVER_DRAW)
 		{
-			// Clear buffer
+			memset(message, 0, STRING_LENGTH);
+			receiveMessageFromServer(socketfd, message);
 			memset(board, 0, BOARD_SIZE);
 			receiveBoard(socketfd, board);
-			printBoard(board, "Game ends in a draw :/");
+			printBoard(board, message);
 			endOfGame = TRUE;
 		}
 	}
