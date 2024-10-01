@@ -222,9 +222,21 @@ int main(int argc, char *argv[])
 			receiveBoard(socketfd, board);
 			printBoard(board, message);
 
-			move = readMove();
-			sendMoveToServer(socketfd, move);
+			tMove moveResult = fullColumn_move;
 
+			while (moveResult != OK_move)
+			{
+				move = readMove();
+				sendMoveToServer(socketfd, move);
+				moveResult = receiveCode(socketfd);
+
+				if (moveResult == fullColumn_move)
+				{
+					memset(message, 0, STRING_LENGTH);
+					receiveMessageFromServer(socketfd, message);
+					printBoard(board, message);
+				}
+			}
 		}
 		else if (code == GAMEOVER_WIN)
 		{

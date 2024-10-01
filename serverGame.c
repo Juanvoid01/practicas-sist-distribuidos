@@ -199,24 +199,63 @@ int main(int argc, char *argv[])
 			sendCodeToClient(socketPlayer1, TURN_MOVE);
 			sendCodeToClient(socketPlayer2, TURN_WAIT);
 
-			sendMessageToPlayer(socketPlayer1, "Your turn, play a move");
+			memset(message, 0, STRING_LENGTH);
+			sprintf(message, "It's your turn. You play with: %c", PLAYER_1_CHIP);
+			sendMessageToPlayer(socketPlayer1, message);
 			sendBoardToClient(socketPlayer1, board);
-			sendMessageToPlayer(socketPlayer2, "Opponent turn, wait");
+			memset(message, 0, STRING_LENGTH);
+			sprintf(message, "Your rival is thinking... please, wait! You play with: %c", PLAYER_2_CHIP);
+			sendMessageToPlayer(socketPlayer2, message);
 			sendBoardToClient(socketPlayer2, board);
 
-			column = receiveMoveFromPlayer(socketPlayer1);
+			int moveOkey = 0;
+
+			while (moveOkey == 0)
+			{
+				column = receiveMoveFromPlayer(socketPlayer1);
+				moveResult = checkMove(board, column);
+				sendCodeToClient(socketPlayer1, moveResult);
+				if (moveResult == fullColumn_move)
+				{
+					sendMessageToPlayer(socketPlayer1, "Column is full, play other move");
+				}
+				else
+				{
+					moveOkey = 1;
+				}
+			}
 		}
 		else
 		{
 			sendCodeToClient(socketPlayer2, TURN_MOVE);
 			sendCodeToClient(socketPlayer1, TURN_WAIT);
 
-			sendMessageToPlayer(socketPlayer2, "Your turn, play a move");
+			memset(message, 0, STRING_LENGTH);
+			sprintf(message, "It's your turn. You play with: %c", PLAYER_2_CHIP);
+			sendMessageToPlayer(socketPlayer2, message);
 			sendBoardToClient(socketPlayer2, board);
-			sendMessageToPlayer(socketPlayer1, "Opponent turn, wait");
+
+			memset(message, 0, STRING_LENGTH);
+			sprintf(message, "Your rival is thinking... please, wait! You play with: %c", PLAYER_1_CHIP);
+			sendMessageToPlayer(socketPlayer1, message);
 			sendBoardToClient(socketPlayer1, board);
 
-			column = receiveMoveFromPlayer(socketPlayer2);
+			int moveOkey = 0;
+
+			while (moveOkey == 0)
+			{
+				column = receiveMoveFromPlayer(socketPlayer2);
+				moveResult = checkMove(board, column);
+				sendCodeToClient(socketPlayer2, moveResult);
+				if (moveResult == fullColumn_move)
+				{
+					sendMessageToPlayer(socketPlayer2, "Column is full, play other move");
+				}
+				else
+				{
+					moveOkey = 1;
+				}
+			}
 		}
 
 		insertChip(board, currentPlayer, column);
