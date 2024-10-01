@@ -1,5 +1,32 @@
 #include "serverGame.h"
 
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+
+// Maximum message length
+#define MAX_MSG_LENGTH 256
+
+// Maximum number of connections
+#define MAX_CONNECTIONS 5
+
+struct ThreadArgs
+{
+	int socketPlayer1;
+	int socketPlayer2;
+};
+
+int acceptConnection(int socketServer);
+void *game(void *threadArgs);
+int createBindListenSocket(unsigned short port);
+
 void sendMessageToPlayer(int socketClient, char *message)
 {
 	int l = strlen(message);
@@ -94,23 +121,6 @@ tPlayer switchPlayer(tPlayer currentPlayer)
 int main(int argc, char *argv[])
 {
 
-	int socketfd;							  /** Socket descriptor */
-	struct sockaddr_in serverAddress;		  /** Server address structure */
-	unsigned int port;						  /** Listening port */
-	struct sockaddr_in player1Address;		  /** Client address structure for player 1 */
-	struct sockaddr_in player2Address;		  /** Client address structure for player 2 */
-	int socketPlayer1 = 0, socketPlayer2 = 0; /** Socket descriptor for each player */
-	unsigned int clientLength;				  /** Length of client structure */
-
-	tBoard board;		   /** Board of the game */
-	tPlayer currentPlayer; /** Current player */
-	tMove moveResult;	   /** Result of player's move */
-	tString player1Name;   /** Name of player 1 */
-	tString player2Name;   /** Name of player 2 */
-	int endOfGame;		   /** Flag to control the end of the game*/
-	unsigned int column;   /** Selected column to insert the chip */
-	tString message;	   /** Message sent to the players */
-
 	// Check arguments
 	if (argc != 2)
 	{
@@ -123,7 +133,7 @@ int main(int argc, char *argv[])
 	srand(time(NULL));
 
 	// Create the socket
-	socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	int socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	// Check
 	if (socketfd < 0)
@@ -132,52 +142,51 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// Init server structure
-	memset(&serverAddress, 0, sizeof(serverAddress));
-
 	// Get listening port
-	port = atoi(argv[1]);
+	int port = atoi(argv[1]);
 	printf("port:%d\n", port);
-	// Fill server structure
-	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-	serverAddress.sin_port = htons(port);
 
-	// Bind
-	if (bind(socketfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+	socketfd = createBindListenSocket (port);
+	
+	while (1)
 	{
-		fprintf(stderr, "ERROR bind\n");
-		exit(1);
+
+		// Establish connection with a client
+		int player1socket = acceptConnection(socketfd);
+		int player2socket = acceptConnection(socketfd);
+
+		
+		struct ThreadArgs *threadArgs;
+		pthread_t threadID;
+
+		// Allocate memory
+		if ((threadArgs = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs))) == NULL)
+			showError("Error while allocating memory");
+
+		// Set socket to the thread's parameter structure
+		threadArgs->socketPlayer1 = player1socket;
+		threadArgs->socketPlayer2 = player2socket;
+		// Create a new thread
+		if (pthread_create(&threadID, NULL, game, (void *)threadArgs) != 0)
+			showError("pthread_create() failed");
 	}
 
-	// Listen
-	if (listen(socketfd, 10) != 0)
-	{
-		fprintf(stderr, "ERROR listen\n");
-		exit(1);
-	}
+	close(socketfd);
+}
 
-	clientLength = sizeof(player1Address);
+void *game(void *threadArgs)
+{
 
-	socketPlayer1 = accept(socketfd, (struct sockaddr *)&player1Address, &clientLength);
+	int socketPlayer1 = ((struct ThreadArgs *)threadArgs)->socketPlayer1;
+	int socketPlayer2 = ((struct ThreadArgs *)threadArgs)->socketPlayer2;
 
-	if (socketPlayer1 == -1)
-	{
-		fprintf(stderr, "ERROR accept player1\n");
-		exit(1);
-	}
+	tString player1Name; /** Name of player 1 */
+	tString player2Name; /** Name of player 2 */
 
 	memset(player1Name, 0, STRING_LENGTH);
 
 	receiveMessageFromPlayer(socketPlayer1, player1Name);
 
-	socketPlayer2 = accept(socketfd, (struct sockaddr *)&player2Address, &clientLength);
-
-	if (socketPlayer2 == -1)
-	{
-		fprintf(stderr, "ERROR accept player2\n");
-		exit(1);
-	}
 
 	memset(player2Name, 0, STRING_LENGTH);
 
@@ -186,6 +195,26 @@ int main(int argc, char *argv[])
 	// Cross player names
 	sendMessageToPlayer(socketPlayer1, player2Name);
 	sendMessageToPlayer(socketPlayer2, player1Name);
+
+	tBoard board;		   /** Board of the game */
+	tPlayer currentPlayer; /** Current player */
+	tMove moveResult;	   /** Result of player's move */
+
+	int endOfGame;		 /** Flag to control the end of the game*/
+	unsigned int column; /** Selected column to insert the chip */
+	tString message;	 /** Message sent to the players */
+	tString messageWaitTurnP1;
+	memset(messageWaitTurnP1, 0, STRING_LENGTH);
+	sprintf(messageWaitTurnP1, "Your rival is thinking... please, wait! You play with: %c", PLAYER_1_CHIP);
+	tString messageWaitTurnP2;
+	memset(messageWaitTurnP2, 0, STRING_LENGTH);
+	sprintf(messageWaitTurnP2, "Your rival is thinking... please, wait! You play with: %c", PLAYER_2_CHIP);
+	tString messagePlayTurnP1;
+	memset(messagePlayTurnP1, 0, STRING_LENGTH);
+	sprintf(messagePlayTurnP1, "It's your turn. You play with: %c", PLAYER_1_CHIP);
+	tString messagePlayTurnP2;
+	memset(messagePlayTurnP2, 0, STRING_LENGTH);
+	sprintf(messagePlayTurnP2, "It's your turn. You play with: %c", PLAYER_2_CHIP);
 
 	// Init game
 	initBoard(board);
@@ -199,12 +228,9 @@ int main(int argc, char *argv[])
 			sendCodeToClient(socketPlayer1, TURN_MOVE);
 			sendCodeToClient(socketPlayer2, TURN_WAIT);
 
-			memset(message, 0, STRING_LENGTH);
-			sprintf(message, "It's your turn. You play with: %c", PLAYER_1_CHIP);
-			sendMessageToPlayer(socketPlayer1, message);
+			sendMessageToPlayer(socketPlayer1, messagePlayTurnP1);
 			sendBoardToClient(socketPlayer1, board);
-			memset(message, 0, STRING_LENGTH);
-			sprintf(message, "Your rival is thinking... please, wait! You play with: %c", PLAYER_2_CHIP);
+			sprintf(message, messageWaitTurnP2);
 			sendMessageToPlayer(socketPlayer2, message);
 			sendBoardToClient(socketPlayer2, board);
 
@@ -229,15 +255,9 @@ int main(int argc, char *argv[])
 		{
 			sendCodeToClient(socketPlayer2, TURN_MOVE);
 			sendCodeToClient(socketPlayer1, TURN_WAIT);
-
-			memset(message, 0, STRING_LENGTH);
-			sprintf(message, "It's your turn. You play with: %c", PLAYER_2_CHIP);
-			sendMessageToPlayer(socketPlayer2, message);
+			sendMessageToPlayer(socketPlayer2, messagePlayTurnP2);
 			sendBoardToClient(socketPlayer2, board);
-
-			memset(message, 0, STRING_LENGTH);
-			sprintf(message, "Your rival is thinking... please, wait! You play with: %c", PLAYER_1_CHIP);
-			sendMessageToPlayer(socketPlayer1, message);
+			sendMessageToPlayer(socketPlayer1, messageWaitTurnP1);
 			sendBoardToClient(socketPlayer1, board);
 
 			int moveOkey = 0;
@@ -289,6 +309,50 @@ int main(int argc, char *argv[])
 			currentPlayer = switchPlayer(currentPlayer);
 		}
 	}
+}
 
-	close(socketfd);
+int acceptConnection(int socketServer)
+{
+
+	int clientSocket;
+	struct sockaddr_in clientAddress;
+	unsigned int clientAddressLength;
+
+	// Get length of client address
+	clientAddressLength = sizeof(clientAddress);
+
+	
+
+	// Accept
+	if ((clientSocket = accept(socketServer, (struct sockaddr *)&clientAddress, &clientAddressLength)) < 0)
+		showError("Error while accepting connection");
+
+	printf("Connection established with client: %s\n", inet_ntoa(clientAddress.sin_addr));
+
+	return clientSocket;
+}
+
+int createBindListenSocket(unsigned short port)
+{
+
+	int socketId;
+	struct sockaddr_in echoServAddr;
+
+	if ((socketId = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+		showError("Error while creating a socket");
+
+	// Set server address
+	memset(&echoServAddr, 0, sizeof(echoServAddr));
+	echoServAddr.sin_family = AF_INET;
+	echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	echoServAddr.sin_port = htons(port);
+
+	// Bind
+	if (bind(socketId, (struct sockaddr *)&echoServAddr, sizeof(echoServAddr)) < 0)
+		showError("Error while binding");
+
+	if (listen(socketId, MAX_CONNECTIONS) < 0)
+		showError("Error while listening");
+
+	return socketId;
 }
