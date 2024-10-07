@@ -121,13 +121,13 @@ int main(int argc, char *argv[])
 	unsigned int port;				   /** Port number (server) */
 	struct sockaddr_in server_address; /** Server address structure */
 	char *serverIP;					   /** Server IP */
-	int msgLenght;
+	//int msgLenght;
 
 	tBoard board;			/** Board to be displayed */
 	tString playerName;		/** Name of the player */
 	tString rivalName;		/** Name of the rival */
 	tString message;		/** Message received from server */
-	unsigned int column;	/** Selected column */
+	//unsigned int column;	/** Selected column */
 	unsigned int code;		/** Code sent/receive to/from server */
 	unsigned int endOfGame; /** Flag to control the end of the game */
 
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
 
 	while (!endOfGame)
 	{
-		unsigned int code = receiveCode(socketfd);
+		code = receiveCode(socketfd);
 
 		if (code == TURN_WAIT)
 		{

@@ -17,6 +17,22 @@
 // Maximum number of connections
 #define MAX_CONNECTIONS 5
 
+#define LAST_GAMES_FILE_NAME "game_results.txt"
+
+#define MAX_RESULTS 3
+
+
+struct GameResult
+{
+	tString winner;
+	tString loser;
+};
+
+struct GameResult results[MAX_RESULTS];
+int resultCount = 0;
+
+pthread_mutex_t resultsMutex = PTHREAD_MUTEX_INITIALIZER;
+
 struct ThreadArgs
 {
 	int socketPlayer1;
@@ -26,6 +42,70 @@ struct ThreadArgs
 int acceptConnection(int socketServer);
 void *game(void *threadArgs);
 int createBindListenSocket(unsigned short port);
+void sendMessageToPlayer(int socketClient, char *message);
+void receiveMessageFromPlayer(int socketClient, char *message);
+void sendCodeToClient(int socketClient, unsigned int code);
+void sendBoardToClient(int socketClient, tBoard board);
+unsigned int receiveMoveFromPlayer(int socketClient);
+int getSocketPlayer(tPlayer player, int player1socket, int player2socket);
+tPlayer switchPlayer(tPlayer currentPlayer);
+void saveResultsToFile(tString winner, tString loser);
+void readResultsFromFile();
+
+int main(int argc, char *argv[])
+{
+
+	// Check arguments
+	if (argc != 2)
+	{
+		fprintf(stderr, "ERROR wrong number of arguments\n");
+		fprintf(stderr, "Usage:\n$>%s port\n", argv[0]);
+		exit(1);
+	}
+
+	// Init seed
+	srand(time(NULL));
+
+	// Create the socket
+	int socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+	// Check
+	if (socketfd < 0)
+	{
+		fprintf(stderr, "ERROR socket\n");
+		exit(1);
+	}
+
+	// Get listening port
+	int port = atoi(argv[1]);
+	printf("port:%d\n", port);
+
+	socketfd = createBindListenSocket(port);
+
+	while (1)
+	{
+
+		// Establish connection with a client
+		int player1socket = acceptConnection(socketfd);
+		int player2socket = acceptConnection(socketfd);
+
+		struct ThreadArgs *threadArgs;
+		pthread_t threadID;
+
+		// Allocate memory
+		if ((threadArgs = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs))) == NULL)
+			showError("Error while allocating memory");
+
+		// Set socket to the thread's parameter structure
+		threadArgs->socketPlayer1 = player1socket;
+		threadArgs->socketPlayer2 = player2socket;
+		// Create a new thread
+		if (pthread_create(&threadID, NULL, game, (void *)threadArgs) != 0)
+			showError("pthread_create() failed");
+	}
+
+	close(socketfd);
+}
 
 void sendMessageToPlayer(int socketClient, char *message)
 {
@@ -118,60 +198,53 @@ tPlayer switchPlayer(tPlayer currentPlayer)
 	return nextPlayer;
 }
 
-int main(int argc, char *argv[])
-{
+void saveResultsToFile(tString winner, tString loser) {
+    pthread_mutex_lock(&resultsMutex);
 
-	// Check arguments
-	if (argc != 2)
-	{
-		fprintf(stderr, "ERROR wrong number of arguments\n");
-		fprintf(stderr, "Usage:\n$>%s port\n", argv[0]);
-		exit(1);
-	}
+    // Añadir el nuevo resultado al array circular
+    if (resultCount < MAX_RESULTS) {
+        resultCount++;
+    }
+    for (int i = resultCount - 1; i > 0; i--) {
+        results[i] = results[i - 1];
+    }
+    strncpy(results[0].winner, winner, STRING_LENGTH);
+    strncpy(results[0].loser, loser, STRING_LENGTH);
 
-	// Init seed
-	srand(time(NULL));
+    // Guardar en archivo
+    FILE *file = fopen(LAST_GAMES_FILE_NAME, "w");
+    if (file == NULL) {
+        perror("Error opening file for writing");
+        pthread_mutex_unlock(&resultsMutex);
+        return;
+    }
+    
+    for (int i = 0; i < resultCount; i++) {
+        fprintf(file, "Game %d: Winner: %s, Loser: %s\n", i + 1, results[i].winner, results[i].loser);
+    }
 
-	// Create the socket
-	int socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    fclose(file);
+    pthread_mutex_unlock(&resultsMutex);
+}
 
-	// Check
-	if (socketfd < 0)
-	{
-		fprintf(stderr, "ERROR socket\n");
-		exit(1);
-	}
+// Lee y muestra los últimos 3 resultados desde el archivo
+void readResultsFromFile() {
+    pthread_mutex_lock(&resultsMutex);
 
-	// Get listening port
-	int port = atoi(argv[1]);
-	printf("port:%d\n", port);
+    FILE *file = fopen(LAST_GAMES_FILE_NAME, "r");
+    if (file == NULL) {
+        perror("Error opening file for reading");
+        pthread_mutex_unlock(&resultsMutex);
+        return;
+    }
 
-	socketfd = createBindListenSocket (port);
-	
-	while (1)
-	{
+    char line[MAX_MSG_LENGTH];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        printf("%s", line);
+    }
 
-		// Establish connection with a client
-		int player1socket = acceptConnection(socketfd);
-		int player2socket = acceptConnection(socketfd);
-
-		
-		struct ThreadArgs *threadArgs;
-		pthread_t threadID;
-
-		// Allocate memory
-		if ((threadArgs = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs))) == NULL)
-			showError("Error while allocating memory");
-
-		// Set socket to the thread's parameter structure
-		threadArgs->socketPlayer1 = player1socket;
-		threadArgs->socketPlayer2 = player2socket;
-		// Create a new thread
-		if (pthread_create(&threadID, NULL, game, (void *)threadArgs) != 0)
-			showError("pthread_create() failed");
-	}
-
-	close(socketfd);
+    fclose(file);
+    pthread_mutex_unlock(&resultsMutex);
 }
 
 void *game(void *threadArgs)
@@ -187,7 +260,6 @@ void *game(void *threadArgs)
 
 	receiveMessageFromPlayer(socketPlayer1, player1Name);
 
-
 	memset(player2Name, 0, STRING_LENGTH);
 
 	receiveMessageFromPlayer(socketPlayer2, player2Name);
@@ -202,7 +274,8 @@ void *game(void *threadArgs)
 
 	int endOfGame;		 /** Flag to control the end of the game*/
 	unsigned int column; /** Selected column to insert the chip */
-	tString message;	 /** Message sent to the players */
+
+	/** Message sent to the players */
 	tString messageWaitTurnP1;
 	memset(messageWaitTurnP1, 0, STRING_LENGTH);
 	sprintf(messageWaitTurnP1, "Your rival is thinking... please, wait! You play with: %c", PLAYER_1_CHIP);
@@ -230,8 +303,7 @@ void *game(void *threadArgs)
 
 			sendMessageToPlayer(socketPlayer1, messagePlayTurnP1);
 			sendBoardToClient(socketPlayer1, board);
-			sprintf(message, messageWaitTurnP2);
-			sendMessageToPlayer(socketPlayer2, message);
+			sendMessageToPlayer(socketPlayer2, messageWaitTurnP2);
 			sendBoardToClient(socketPlayer2, board);
 
 			int moveOkey = 0;
@@ -287,6 +359,8 @@ void *game(void *threadArgs)
 			sendBoardToClient(socketPlayer1, board);
 			sendBoardToClient(socketPlayer2, board);
 			endOfGame = TRUE;
+			saveResultsToFile(player1Name, player2Name);
+			readResultsFromFile();
 		}
 		if (checkWinner(board, player2))
 		{
@@ -294,6 +368,8 @@ void *game(void *threadArgs)
 			sendCodeToClient(socketPlayer2, GAMEOVER_WIN);
 			sendBoardToClient(socketPlayer1, board);
 			sendBoardToClient(socketPlayer2, board);
+			saveResultsToFile(player2Name, player1Name);
+			readResultsFromFile();
 			endOfGame = TRUE;
 		}
 		else if (isBoardFull(board))
@@ -309,6 +385,8 @@ void *game(void *threadArgs)
 			currentPlayer = switchPlayer(currentPlayer);
 		}
 	}
+
+	return 0;
 }
 
 int acceptConnection(int socketServer)
@@ -320,8 +398,6 @@ int acceptConnection(int socketServer)
 
 	// Get length of client address
 	clientAddressLength = sizeof(clientAddress);
-
-	
 
 	// Accept
 	if ((clientSocket = accept(socketServer, (struct sockaddr *)&clientAddress, &clientAddressLength)) < 0)

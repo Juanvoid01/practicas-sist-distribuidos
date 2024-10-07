@@ -117,7 +117,8 @@ int checkUpLeft (tBoard board, unsigned int cell, char c){
 		// Init...
 		found = FALSE;
 
-		if (((cell%BOARD_WIDTH) >= 3) && (cell < (BOARD_WIDTH*3))){
+		if (((cell%BOARD_WIDTH) >= 3) && (cell < (BOARD_WIDTH*3)))
+		{
 
 			// Check second chip
 			if ((cell+BOARD_WIDTH-1) < (BOARD_SIZE))
