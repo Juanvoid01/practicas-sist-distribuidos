@@ -15,12 +15,11 @@
 #define MAX_MSG_LENGTH 256
 
 // Maximum number of connections
-#define MAX_CONNECTIONS 5
+#define MAX_CONNECTIONS 20
 
 #define LAST_GAMES_FILE_NAME "game_results.txt"
 
 #define MAX_RESULTS 3
-
 
 struct GameResult
 {
@@ -29,15 +28,9 @@ struct GameResult
 };
 
 struct GameResult results[MAX_RESULTS];
-int resultCount = 0;
+volatile int resultCount = 0;
 
 pthread_mutex_t resultsMutex = PTHREAD_MUTEX_INITIALIZER;
-
-struct ThreadArgs
-{
-	int socketPlayer1;
-	int socketPlayer2;
-};
 
 int acceptConnection(int socketServer);
 void *game(void *threadArgs);
@@ -50,7 +43,6 @@ unsigned int receiveMoveFromPlayer(int socketClient);
 int getSocketPlayer(tPlayer player, int player1socket, int player2socket);
 tPlayer switchPlayer(tPlayer currentPlayer);
 void saveResultsToFile(tString winner, tString loser);
-void readResultsFromFile();
 
 int main(int argc, char *argv[])
 {
@@ -89,11 +81,11 @@ int main(int argc, char *argv[])
 		int player1socket = acceptConnection(socketfd);
 		int player2socket = acceptConnection(socketfd);
 
-		struct ThreadArgs *threadArgs;
+		tThreadArgs *threadArgs;
 		pthread_t threadID;
 
 		// Allocate memory
-		if ((threadArgs = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs))) == NULL)
+		if ((threadArgs = (tThreadArgs *)malloc(sizeof(tThreadArgs))) == NULL)
 			showError("Error while allocating memory");
 
 		// Set socket to the thread's parameter structure
@@ -151,24 +143,58 @@ void receiveMessageFromPlayer(int socketClient, char *message)
 void sendCodeToClient(int socketClient, unsigned int code)
 {
 	int l = sizeof(code);
-	send(socketClient, &l, sizeof(l), 0);
-	send(socketClient, &code, l, 0);
+	int bytes_sent = send(socketClient, &l, sizeof(l), 0);
+	if (bytes_sent == -1)
+	{
+		perror("Error sending code length\n");
+		return;
+	}
+
+	bytes_sent = send(socketClient, &code, l, 0);
+
+	if (bytes_sent == -1)
+	{
+		perror("Error sending code content\n");
+		return;
+	}
 }
 
 void sendBoardToClient(int socketClient, tBoard board)
 {
 	int l = BOARD_SIZE;
-	send(socketClient, &l, sizeof(l), 0);
-	send(socketClient, board, l, 0);
+	int bytes_sent = send(socketClient, &l, sizeof(l), 0);
+	if (bytes_sent == -1)
+	{
+		perror("Error sending board length\n");
+		return;
+	}
+	bytes_sent = send(socketClient, board, l, 0);
+
+	if (bytes_sent == -1)
+	{
+		perror("Error sending board content\n");
+		return;
+	}
 }
 
 unsigned int receiveMoveFromPlayer(int socketClient)
 {
 	unsigned int move;
 	int l;
-	recv(socketClient, &l, sizeof(l), 0);
-	recv(socketClient, &move, l, 0);
+	int bytes_received = recv(socketClient, &l, sizeof(l), 0);
 
+	if (bytes_received == -1 || bytes_received != sizeof(l))
+	{
+		perror("Error receiving move length\n");
+		return 0;
+	}
+	bytes_received = recv(socketClient, &move, l, 0);
+
+	if (bytes_received == -1 || bytes_received != l)
+	{
+		perror("Error receiving move\n");
+		return 0;
+	}
 	return move;
 }
 
@@ -198,70 +224,53 @@ tPlayer switchPlayer(tPlayer currentPlayer)
 	return nextPlayer;
 }
 
-void saveResultsToFile(tString winner, tString loser) {
-    pthread_mutex_lock(&resultsMutex);
+void saveResultsToFile(tString winner, tString loser)
+{
+	pthread_mutex_lock(&resultsMutex);
 
-    // Añadir el nuevo resultado al array circular
-    if (resultCount < MAX_RESULTS) {
-        resultCount++;
-    }
-    for (int i = resultCount - 1; i > 0; i--) {
-        results[i] = results[i - 1];
-    }
-    strncpy(results[0].winner, winner, STRING_LENGTH);
-    strncpy(results[0].loser, loser, STRING_LENGTH);
+	// Circular array
+	if (resultCount < MAX_RESULTS)
+	{
+		resultCount++;
+	}
 
-    // Guardar en archivo
-    FILE *file = fopen(LAST_GAMES_FILE_NAME, "w");
-    if (file == NULL) {
-        perror("Error opening file for writing");
-        pthread_mutex_unlock(&resultsMutex);
-        return;
-    }
-    
-    for (int i = 0; i < resultCount; i++) {
-        fprintf(file, "Game %d: Winner: %s, Loser: %s\n", i + 1, results[i].winner, results[i].loser);
-    }
+	for (int i = resultCount - 1; i > 0; i--)
+	{
+		results[i] = results[i - 1];
+	}
+	strncpy(results[0].winner, winner, STRING_LENGTH);
+	strncpy(results[0].loser, loser, STRING_LENGTH);
 
-    fclose(file);
-    pthread_mutex_unlock(&resultsMutex);
-}
+	FILE *file = fopen(LAST_GAMES_FILE_NAME, "w");
+	if (file == NULL)
+	{
+		perror("Error opening file for writing");
+		pthread_mutex_unlock(&resultsMutex);
+		return;
+	}
 
-// Lee y muestra los últimos 3 resultados desde el archivo
-void readResultsFromFile() {
-    pthread_mutex_lock(&resultsMutex);
+	for (int i = 0; i < resultCount; i++)
+	{
+		fprintf(file, "Winner: %s, Loser: %s\n", results[i].winner, results[i].loser);
+	}
 
-    FILE *file = fopen(LAST_GAMES_FILE_NAME, "r");
-    if (file == NULL) {
-        perror("Error opening file for reading");
-        pthread_mutex_unlock(&resultsMutex);
-        return;
-    }
-
-    char line[MAX_MSG_LENGTH];
-    while (fgets(line, sizeof(line), file) != NULL) {
-        printf("%s", line);
-    }
-
-    fclose(file);
-    pthread_mutex_unlock(&resultsMutex);
+	fclose(file);
+	pthread_mutex_unlock(&resultsMutex);
 }
 
 void *game(void *threadArgs)
 {
 
-	int socketPlayer1 = ((struct ThreadArgs *)threadArgs)->socketPlayer1;
-	int socketPlayer2 = ((struct ThreadArgs *)threadArgs)->socketPlayer2;
+	int socketPlayer1 = ((tThreadArgs *)threadArgs)->socketPlayer1;
+	int socketPlayer2 = ((tThreadArgs *)threadArgs)->socketPlayer2;
 
 	tString player1Name; /** Name of player 1 */
 	tString player2Name; /** Name of player 2 */
 
+	//receive player names
 	memset(player1Name, 0, STRING_LENGTH);
-
 	receiveMessageFromPlayer(socketPlayer1, player1Name);
-
 	memset(player2Name, 0, STRING_LENGTH);
-
 	receiveMessageFromPlayer(socketPlayer2, player2Name);
 
 	// Cross player names
@@ -356,26 +365,36 @@ void *game(void *threadArgs)
 		{
 			sendCodeToClient(socketPlayer1, GAMEOVER_WIN);
 			sendCodeToClient(socketPlayer2, GAMEOVER_LOSE);
+
+			sendMessageToPlayer(socketPlayer1, "You win the game :)");
+			sendMessageToPlayer(socketPlayer2, "You lose the game :(");
+
 			sendBoardToClient(socketPlayer1, board);
 			sendBoardToClient(socketPlayer2, board);
 			endOfGame = TRUE;
 			saveResultsToFile(player1Name, player2Name);
-			readResultsFromFile();
 		}
 		if (checkWinner(board, player2))
 		{
 			sendCodeToClient(socketPlayer1, GAMEOVER_LOSE);
 			sendCodeToClient(socketPlayer2, GAMEOVER_WIN);
+
+			sendMessageToPlayer(socketPlayer2, "You win the game :)");
+			sendMessageToPlayer(socketPlayer1, "You lose the game :(");
+
 			sendBoardToClient(socketPlayer1, board);
 			sendBoardToClient(socketPlayer2, board);
 			saveResultsToFile(player2Name, player1Name);
-			readResultsFromFile();
 			endOfGame = TRUE;
 		}
 		else if (isBoardFull(board))
 		{
 			sendCodeToClient(socketPlayer1, GAMEOVER_DRAW);
 			sendCodeToClient(socketPlayer2, GAMEOVER_DRAW);
+
+			sendMessageToPlayer(socketPlayer1, "You draw :/");
+			sendMessageToPlayer(socketPlayer2, "You draw :/");
+
 			sendBoardToClient(socketPlayer1, board);
 			sendBoardToClient(socketPlayer2, board);
 			endOfGame = TRUE;

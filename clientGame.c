@@ -44,23 +44,61 @@ void receiveMessageFromServer(int socketServer, char *message)
 void receiveBoard(int socketServer, tBoard board)
 {
 	int l;
-	recv(socketServer, &l, sizeof(l), 0);
-	recv(socketServer, board, l, 0);
+	int bytes_received = recv(socketServer, &l, sizeof(l), 0);
+
+	if (bytes_received == -1)
+	{
+		perror("Error receiving board length\n,");
+		return;
+	}
+	bytes_received = recv(socketServer, board, l, 0);
+
+	if (bytes_received == -1)
+	{
+		perror("Error receiving board\n");
+		return;
+	}
 }
 
 void sendMoveToServer(int socketServer, unsigned int move)
 {
 	int l = sizeof(move);
-	send(socketServer, &l, sizeof(l), 0);
-	send(socketServer, &move, l, 0);
+	int bytes_sent = send(socketServer, &l, sizeof(l), 0);
+
+	if (bytes_sent == -1 || bytes_sent != sizeof(l))
+	{
+		perror("Error sending move length\n");
+		return;
+	}
+
+	bytes_sent = send(socketServer, &move, l, 0);
+
+	if (bytes_sent == -1 || bytes_sent != l)
+	{
+		perror("Error sending move content\n");
+		return;
+	}
 }
 
 unsigned int receiveCode(int socketServer)
 {
 	unsigned int code;
 	int l;
-	recv(socketServer, &l, sizeof(l), 0);
-	recv(socketServer, &code, l, 0);
+	int bytes_received = recv(socketServer, &l, sizeof(l), 0);
+
+	if (bytes_received == -1)
+	{
+		perror("Error receiving code length\n,");
+		return 0;
+	}
+
+	bytes_received = recv(socketServer, &code, l, 0);
+
+	if (bytes_received == -1)
+	{
+		perror("Error receiving code\n");
+		return 0;
+	}
 
 	return code;
 }
@@ -121,13 +159,13 @@ int main(int argc, char *argv[])
 	unsigned int port;				   /** Port number (server) */
 	struct sockaddr_in server_address; /** Server address structure */
 	char *serverIP;					   /** Server IP */
-	//int msgLenght;
+	// int msgLenght;
 
-	tBoard board;			/** Board to be displayed */
-	tString playerName;		/** Name of the player */
-	tString rivalName;		/** Name of the rival */
-	tString message;		/** Message received from server */
-	//unsigned int column;	/** Selected column */
+	tBoard board;		/** Board to be displayed */
+	tString playerName; /** Name of the player */
+	tString rivalName;	/** Name of the rival */
+	tString message;	/** Message received from server */
+	// unsigned int column;	/** Selected column */
 	unsigned int code;		/** Code sent/receive to/from server */
 	unsigned int endOfGame; /** Flag to control the end of the game */
 
