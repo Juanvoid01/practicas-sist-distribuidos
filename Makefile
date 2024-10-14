@@ -1,29 +1,20 @@
-CC = gcc
-CFLAGS = -c -g -Wall
+#SSL_LIBS=-lssl -lcrypto
+#SSL_FLAGS=-DWITH_OPENSSL
 
-EXECS = clientGame serverGame
+SSL_LIBS=
+SSL_FLAGS=
 
-all: $(EXECS)
+all: soapC.c client server
+
+soapC.c:
+	soapcpp2 -b -c conecta4.h
+
+client:
+	gcc $(SSL_FLAGS) -o client client.c soapC.c soapClient.c game.c -lgsoap $(SSL_LIBS) -L$(GSOAP_LIB) -I$(GSOAP_INCLUDE)
+
+server:	
+	gcc $(SSL_FLAGS) -o server server.c soapC.c soapServer.c game.c -lgsoap -lpthread $(SSL_LIBS) -L$(GSOAP_LIB) -I$(GSOAP_INCLUDE)
 
 
-clientGame: utils.o clientGame.o 
-	$(CC) utils.o clientGame.o -o clientGame
-
-clientGame.o: clientGame.c
-	$(CC) $(CFLAGS) clientGame.c
-		
-utils.o: utils.c
-	$(CC) $(CFLAGS) utils.c
-
-serverGame: utils.o game.o serverGame.o 
-	$(CC) utils.o game.o serverGame.o -o serverGame
-
-serverGame.o: serverGame.c
-	$(CC) $(CFLAGS) serverGame.c
-	
-game.o: game.c
-	$(CC) $(CFLAGS) game.c
-	
-clean:
-	rm -f  *.o
-	rm -f $(EXECS)
+clean:	
+	rm client server game.o *.xml *.nsmap *.wsdl *.xsd soapStub.h soapServerLib.* soapH.h soapServer.* soapClientLib.* soapClient.* soapC.*

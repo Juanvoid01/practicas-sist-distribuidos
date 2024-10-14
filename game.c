@@ -1,48 +1,35 @@
 #include "game.h"
 
 
-void initBoard (tBoard board){
+void initBoard (xsd__string board){
+	
+	int empty = (int) EMPTY_CELL;
 
-	int i;
-
-		for (i=0; i<(BOARD_SIZE); i++)
-			board[i] = (char) EMPTY_CELL;
+	for (int i=0; i<(BOARD_WIDTH * BOARD_HEIGHT); i++)
+		board[i] = (char) empty;
 }
 
 
-tMove checkMove (tBoard board, unsigned int column){
+conecta4ns__tMove checkMove (xsd__string board, unsigned int column){
 
-	tMove move;
-
-		// Column is full
+    conecta4ns__tMove move = OK_move;
+		
 		if (board[(BOARD_WIDTH*(BOARD_HEIGHT-1)) + column] != EMPTY_CELL)
 			move = fullColumn_move;
-
-		// Correct move!
-		else
-			move = OK_move;
 
 	return move;
 }
 
 
-void insertChip (tBoard board, tPlayer player, unsigned int column){
+void insertChip (xsd__string board, conecta4ns__tPlayer player, unsigned int column){
 
-	char c;
-	unsigned int cell;
-	unsigned int found;
-
-
-		// Init...
-		found = FALSE;
-		cell = column;
+    char c = PLAYER_1_CHIP;
+    unsigned int cell = column;
+    unsigned int found = FALSE;
 
 		// Set chip type
-		if (player == player1)
-			c = PLAYER_1_CHIP;
-		else
+		if (player == player2)
 			c = PLAYER_2_CHIP;
-
 
 		// Get the right row
 		while (!found){
@@ -53,7 +40,7 @@ void insertChip (tBoard board, tPlayer player, unsigned int column){
 				cell += BOARD_WIDTH;
 
 			// re-Check!
-			if (cell >= (BOARD_SIZE))
+			if (cell >= (BOARD_WIDTH * BOARD_HEIGHT))
 				showError ("[insertChip] Checking out of bounds!!! :(\n");
 		}
 
@@ -62,38 +49,31 @@ void insertChip (tBoard board, tPlayer player, unsigned int column){
 }
 
 
-int checkUp (tBoard board, unsigned int cell, char c){
+int checkUp (xsd__string board, unsigned int cell, char c){
 
-	int found;
-
-		// Init...
-		found = FALSE;
-
+    int found = FALSE;
+		
 		// Check second chip
-		if ((cell+BOARD_WIDTH) < (BOARD_SIZE))
+		if ((cell+BOARD_WIDTH) < (BOARD_WIDTH * BOARD_HEIGHT))
 			found = (board[cell+BOARD_WIDTH] == c);
 
 		// Check third chip
-		if (((cell+(2*BOARD_WIDTH)) < (BOARD_SIZE)) && found)
+		if (((cell+(2*BOARD_WIDTH)) < (BOARD_WIDTH * BOARD_HEIGHT)) && found)
 			found = (board[cell+(2*BOARD_WIDTH)] == c);
 
 		// Check fourth chip
-		if (((cell+(3*BOARD_WIDTH)) < (BOARD_SIZE)) && found )
+		if (((cell+(3*BOARD_WIDTH)) < (BOARD_WIDTH * BOARD_HEIGHT)) && found )
 			found = (board[cell+(3*BOARD_WIDTH)] == c);
 
 	return found;
 }
 
 
-int checkRight (tBoard board, unsigned int cell, char c){
+int checkRight (xsd__string board, unsigned int cell, char c){
 
-	int found;
-	int limit;
-
-		// Init...
-		found = FALSE;
-		limit = ((cell/BOARD_WIDTH) +1) * BOARD_WIDTH;
-
+    int found = FALSE;
+    int limit = ((cell/BOARD_WIDTH) +1) * BOARD_WIDTH;
+		
 		// Check second chip
 		if ((cell+1) < limit)
 			found = (board[cell+1] == c);
@@ -110,26 +90,22 @@ int checkRight (tBoard board, unsigned int cell, char c){
 }
 
 
-int checkUpLeft (tBoard board, unsigned int cell, char c){
+int checkUpLeft (xsd__string board, unsigned int cell, char c){
 
-	int found;
-
-		// Init...
-		found = FALSE;
-
-		if (((cell%BOARD_WIDTH) >= 3) && (cell < (BOARD_WIDTH*3)))
-		{
+    int found = FALSE;
+		
+		if (((cell%BOARD_WIDTH) >= 3) && (cell < (BOARD_WIDTH*3))){
 
 			// Check second chip
-			if ((cell+BOARD_WIDTH-1) < (BOARD_SIZE))
+			if ((cell+BOARD_WIDTH-1) < (BOARD_WIDTH * BOARD_HEIGHT))
 				found = (board[cell+BOARD_WIDTH-1] == c);
 
 			// Check third chip
-			if (((cell+(2*BOARD_WIDTH)-2) < (BOARD_SIZE)) && found)
+			if (((cell+(2*BOARD_WIDTH)-2) < (BOARD_WIDTH * BOARD_HEIGHT)) && found)
 				found = (board[cell+(2*BOARD_WIDTH)-2] == c);
 
 			// Check fourth chip
-			if (((cell+(3*BOARD_WIDTH)-3) < (BOARD_SIZE)) && found )
+			if (((cell+(3*BOARD_WIDTH)-3) < (BOARD_WIDTH * BOARD_HEIGHT)) && found )
 				found = (board[cell+(3*BOARD_WIDTH)-3] == c);
 		}
 
@@ -137,25 +113,22 @@ int checkUpLeft (tBoard board, unsigned int cell, char c){
 }
 
 
-int checkUpRight (tBoard board, unsigned int cell, char c){
+int checkUpRight (xsd__string board, unsigned int cell, char c){
 
-	int found;
-
-		// Init...
-		found = FALSE;
-
+    int found = FALSE;
+		
 		if (((cell%BOARD_WIDTH) <= 3) && (cell < (BOARD_WIDTH*3))){
 
 			// Check second chip
-			if ((cell+BOARD_WIDTH+1) < (BOARD_SIZE))
+			if ((cell+BOARD_WIDTH+1) < (BOARD_WIDTH * BOARD_HEIGHT))
 				found = (board[cell+BOARD_WIDTH+1] == c);
 
 			// Check third chip
-			if (((cell+(2*BOARD_WIDTH)+2) < (BOARD_SIZE)) && found)
+			if (((cell+(2*BOARD_WIDTH)+2) < (BOARD_WIDTH * BOARD_HEIGHT)) && found)
 				found = (board[cell+(2*BOARD_WIDTH)+2] == c);
 
 			// Check fourth chip
-			if (((cell+(3*BOARD_WIDTH)+3) < (BOARD_SIZE)) && found )
+			if (((cell+(3*BOARD_WIDTH)+3) < (BOARD_WIDTH * BOARD_HEIGHT)) && found )
 				found = (board[cell+(3*BOARD_WIDTH)+3] == c);
 		}
 
@@ -163,23 +136,18 @@ int checkUpRight (tBoard board, unsigned int cell, char c){
 }
 
 
-int checkWinner (tBoard board, tPlayer player){
+int checkWinner (xsd__string board, conecta4ns__tPlayer player){
 
-	char c;
-	unsigned int found, i;
-
-		// Init...
-		found = FALSE;
-		i = 0;
-
+    char c = PLAYER_1_CHIP;
+    unsigned int found = FALSE;
+    unsigned int i = 0;
+		
 		// Set chip type
-		if (player == player1)
-			c = PLAYER_1_CHIP;
-		else
+		if (player == player2)
 			c = PLAYER_2_CHIP;
 
 		// Check every cell in the board
-		while ((!found) && (i<(BOARD_SIZE))){
+		while ((!found) && (i<(BOARD_WIDTH * BOARD_HEIGHT))){
 
 			// Is this cell occupied by current player?
 			if (board[i] == c){
@@ -208,17 +176,12 @@ int checkWinner (tBoard board, tPlayer player){
 	return found;
 }
 
+int isBoardFull (xsd__string board){
 
-int isBoardFull (tBoard board){
-
-	int i;
-	int emptyFound;
-
-		// Init...
-		i = BOARD_WIDTH*(BOARD_HEIGHT-1);
-		emptyFound = FALSE;
-
-		// Check last row
+    int i = BOARD_WIDTH*(BOARD_HEIGHT-1);
+    int emptyFound = FALSE;
+		
+        // Check last row
 		while ((!emptyFound) && (i<(BOARD_WIDTH*BOARD_HEIGHT))){
 
 			if (board[i] == EMPTY_CELL)
@@ -230,4 +193,53 @@ int isBoardFull (tBoard board){
 	return (!emptyFound);
 }
 
+void showError(const char *msg){
+    perror(msg);
+    exit(0);
+}
 
+
+void printBoard (xsd__string board, xsd__string message){
+
+    int cell;
+
+        // Clear screen
+        printf("\n%s\n", message);
+
+        // Show column numbers
+        printf ("  0   1   2   3   4   5   6  \n");
+
+        // Draw each row
+        for (int row = (BOARD_HEIGHT - 1); row>=0; row--){
+
+            // Current cell in the board
+            cell = row * BOARD_WIDTH;
+
+            // Separator line
+            printf ("|---|---|---|---|---|---|---|\n");
+
+            // Print a row of cells
+            for (int i=cell; i<(cell+BOARD_WIDTH); i++){
+                printf("| %c ",board[i]);
+            }
+
+            // End of the row!
+            printf ("|\n");
+        }
+
+        // Print the base
+        printf ("|---------------------------|\n\n\n");
+}
+
+void allocClearMessage (struct soap *soap, conecta4ns__tMessage* msg){
+    msg->msg = (xsd__string) soap_malloc (soap, STRING_LENGTH);
+    memset(msg->msg, 0, STRING_LENGTH);
+    msg->__size = STRING_LENGTH;
+}
+
+void allocClearBlock (struct soap *soap, conecta4ns__tBlock* block){
+    block->code = -1;
+    allocClearMessage (soap, &(block->msgStruct));
+    block->__size = 0;
+    block->board = (xsd__string) soap_malloc (soap, BOARD_WIDTH * BOARD_HEIGHT * sizeof (char));    
+}
