@@ -1,6 +1,7 @@
 clientGame
 serverGame
-
+client
+server
 game_results.txt
 
 # Prerequisites

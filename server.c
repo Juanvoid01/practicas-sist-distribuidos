@@ -50,7 +50,10 @@ conecta4ns__tPlayer switchPlayer (conecta4ns__tPlayer currentPlayer){
 }
 
 int searchEmptyGame (){
-
+	for(int i = 0;i<MAX_GAMES;i++){
+		if(games[i].status == gameEmpty);
+			return i;
+	}
 	
 }
 
@@ -86,57 +89,110 @@ void copyGameStatusStructure (conecta4ns__tBlock* status, char* message, xsd__st
 }
 
 
-int conecta4ns__register (struct soap *soap, conecta4ns__tMessage playerName, int *code){
-
+int conecta4ns__register(struct soap *soap, conecta4ns__tMessage playerName, int *code) {
     int gameIndex = -1;
     int result = 0;
+    
+    // Asegurarse de que el string termine en '\0'
+    playerName.msg[playerName.__size] = '\0';
 
-		// Set \0 at the end of the string
-		playerName.msg[playerName.__size] = 0;
+    if (DEBUG_SERVER)
+        printf("[Register] Registering new player -> [%s]\n", playerName.msg);
 
-        if (DEBUG_SERVER)
-            printf ("[Register] Registering new player -> [%s]\n", playerName.msg);
-        
-       
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    // Buscar un juego con espacio disponible
+    for (int i = 0; i < MAX_GAMES; i++) {
+        pthread_mutex_lock(&games[i].status); // Proteger acceso concurrente
 
-  return SOAP_OK;
+        if (games[i].status == gameEmpty || games[i].status == gameWaitingPlayer) {
+            gameIndex = i;
+            // Verificar si el jugador ya está registrado en esta partida
+            if ((games[i].player1Name != NULL && strcmp(games[i].player1Name, playerName.msg) == 0) ||
+                (games[i].player2Name != NULL && strcmp(games[i].player2Name, playerName.msg) == 0)) {
+                *code = ERROR_PLAYER_REPEATED; // Jugador ya registrado en esta partida
+                pthread_mutex_unlock(&games[i].status); // Liberar mutex antes de retornar
+                return SOAP_OK;
+            }
+
+            // Registrar jugador en la partida
+            if (games[i].status == gameEmpty) {
+                games[i].player1Name = strdup(playerName.msg); // Registrar como jugador 1
+                games[i].status = gameWaitingPlayer;
+            } else if (games[i].status == gameWaitingPlayer) {
+                games[i].player2Name = strdup(playerName.msg); // Registrar como jugador 2
+                games[i].status = gameReady;
+            }
+
+            *code = gameIndex; // Retornar el ID del juego
+            pthread_mutex_unlock(&games[i].status); // Liberar mutex
+            return SOAP_OK;
+        }
+        pthread_mutex_unlock(&games[i].status); // Liberar mutex si no se encontró espacio
+    }
+
+    // Si no se encontró espacio, devolver error de servidor lleno
+    if (gameIndex == -1) {
+        *code = ERROR_SERVER_FULL;
+        return SOAP_OK;
+    }
+
+    return SOAP_OK;
 }
 
-int conecta4ns__getStatus (struct soap *soap, conecta4ns__tMessage playerName, int gameId, conecta4ns__tBlock* status){
-	
-	char messageToPlayer [STRING_LENGTH];
+int conecta4ns__getStatus(struct soap *soap, conecta4ns__tMessage playerName, int gameId, conecta4ns__tBlock* status) {
+    char messageToPlayer[STRING_LENGTH];
 
-		// Set \0 at the end of the string and alloc memory for the status
-		playerName.msg[playerName.__size] = 0;
-        allocClearBlock (soap, status);
-		
-		if (DEBUG_SERVER)
-			printf ("Receiving getStatus() request from -> %s [%d] in game %d\n", playerName.msg, playerName.__size, gameId);
-		
-       
-    
-    
-    
-    
-    
-    
-    
+    // Asegurarse de que el string termine en '\0' y reservar memoria para el status
+    playerName.msg[playerName.__size] = '\0';
+    allocClearBlock(soap, status);
 
-	return SOAP_OK;
+    if (DEBUG_SERVER)
+        printf("Receiving getStatus() request from -> %s [%d] in game %d\n", playerName.msg, playerName.__size, gameId);
+
+    // Verificar si el gameId es válido
+    if (gameId < 0 || gameId >= MAX_GAMES || games[gameId].status == gameEmpty) {
+        strcpy(messageToPlayer, "Invalid game ID.");
+        copyGameStatusStructure(status, messageToPlayer, NULL, "error");
+        return SOAP_OK;
+    }
+
+    // Proteger el acceso concurrente al juego
+    pthread_mutex_lock(&games[gameId]);
+
+    // Verificar si el jugador es parte de este juego
+    if ((games[gameId].player1Name != NULL && strcmp(games[gameId].player1Name, playerName.msg) != 0) &&
+        (games[gameId].player2Name != NULL && strcmp(games[gameId].player2Name, playerName.msg) != 0)) {
+        strcpy(messageToPlayer, "Player not registered in this game.");
+        copyGameStatusStructure(status, messageToPlayer, NULL, ERROR_PLAYER_NOT_FOUND);
+        pthread_mutex_unlock(&games[gameId]);
+        return SOAP_OK;
+    }
+
+    // Comprobar si es el turno del jugador o si tiene que esperar
+    if (strcmp(games[gameId].currentPlayer, playerName.msg) == 0) {
+        strcpy(messageToPlayer, "It's your turn.");
+        copyGameStatusStructure(status, messageToPlayer, games[gameId].board, TURN_MOVE);
+    } else {
+        strcpy(messageToPlayer, "Waiting for the other player.");
+        copyGameStatusStructure(status, messageToPlayer, games[gameId].board, TURN_WAIT);
+    }
+
+    // Comprobar si la partida ha terminado (victoria, empate, derrota)
+    if (games[gameId].status == GAMEOVER_WIN) {
+        strcpy(messageToPlayer, "You won!");
+        copyGameStatusStructure(status, messageToPlayer, games[gameId].board, GAMEOVER_WIN);
+    } else if (games[gameId].status == GAMEOVER_DRAW) {
+        strcpy(messageToPlayer, "It's a draw.");
+        copyGameStatusStructure(status, messageToPlayer, games[gameId].board, GAMEOVER_DRAW);
+    } else if (games[gameId].status == GAMEOVER_LOSE) {
+        strcpy(messageToPlayer, "You lost.");
+        copyGameStatusStructure(status, messageToPlayer, games[gameId].board, GAMEOVER_LOSE);
+    }
+
+    pthread_mutex_unlock(&games[gameId]);
+
+    return SOAP_OK;
 }
+
 
 void *processRequest(void *soap){
 
