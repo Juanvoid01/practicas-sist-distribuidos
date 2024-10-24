@@ -168,13 +168,13 @@ int conecta4ns__getStatus(struct soap *soap, conecta4ns__tMessage playerName, in
     }
 
     // Comprobar si es el turno del jugador o si tiene que esperar
-    if (strcmp(games[gameId].currentPlayer, playerName.msg) == 0) {
+    /*if (strcmp(games[gameId].currentPlayer, playerName.msg) == 0) {
         strcpy(messageToPlayer, "It's your turn.");
         copyGameStatusStructure(status, messageToPlayer, games[gameId].board, TURN_MOVE);
     } else {
         strcpy(messageToPlayer, "Waiting for the other player.");
         copyGameStatusStructure(status, messageToPlayer, games[gameId].board, TURN_WAIT);
-    }
+    }*/
 
     // Comprobar si la partida ha terminado (victoria, empate, derrota)
     if (games[gameId].status == GAMEOVER_WIN) {
