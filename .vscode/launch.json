@@ -5,7 +5,7 @@
             "name": "Debug Server",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/serverGame",
+            "program": "${workspaceFolder}/server",
             "args": ["2000"],  // Pass port 2000 to the server
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -26,8 +26,8 @@
             "name": "Debug Client",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/clientGame",
-            "args": ["127.0.0.1", "2000"],  // Pass IP and port to the client
+            "program": "${workspaceFolder}/client",
+            "args": ["http://localhost:2000"],  // Pass IP and port to the client
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

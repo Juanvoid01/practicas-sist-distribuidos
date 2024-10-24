@@ -4,7 +4,7 @@
         {
             "label": "build all",
             "type": "shell",
-            "command": "make",
+            "command": "PATH=$PATH:$GSOAP_HOME/bin && soapcpp2 -c conecta4.h && make",
             "args": [],
             "group": {
                 "kind": "build",
@@ -13,6 +13,6 @@
             "problemMatcher": [
                 "$gcc"
             ]
-        },
+        }
     ]
 }
