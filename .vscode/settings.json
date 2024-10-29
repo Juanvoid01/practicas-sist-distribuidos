@@ -3,6 +3,7 @@
         "clientgame.h": "c",
         "utils.h": "c",
         "gametypes.h": "c",
-        "system_error": "c"
+        "system_error": "c",
+        "server.h": "c"
     }
 }
