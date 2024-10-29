@@ -4,6 +4,11 @@ client
 server
 game_results.txt
 
+*.xml
+*.nsmap
+*.wsdl
+*.xsd
+soap*
 # Prerequisites
 *.d
 
