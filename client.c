@@ -2,288 +2,151 @@
 
 #define DEBUG_CLIENT 1
 
-unsigned int readMove()
-{
+unsigned int readMove() {
+    xsd__string enteredMove;
+    unsigned int move;
+    unsigned int isRightMove;
 
-	xsd__string enteredMove;
-	unsigned int move;
-	unsigned int isRightMove;
+    // Init...
+    enteredMove = (xsd__string)malloc(STRING_LENGTH);
+    memset(enteredMove, 0, STRING_LENGTH);
+    isRightMove = FALSE;
+    move = STRING_LENGTH;
 
-	// Init...
-	enteredMove = (xsd__string)malloc(STRING_LENGTH);
-	memset(enteredMove, 0, STRING_LENGTH);
-	isRightMove = FALSE;
-	move = STRING_LENGTH;
+    while (!isRightMove) {
+        printf("Enter a move [0-%d]: ", BOARD_WIDTH - 1);
 
-	while (!isRightMove)
-	{
+        // Read move
+        fgets(enteredMove, STRING_LENGTH - 1, stdin);
 
-		printf("Enter a move [0-%d]:", BOARD_WIDTH - 1);
+        // Remove new-line char
+        enteredMove[strlen(enteredMove) - 1] = 0;
 
-		// Read move
-		fgets(enteredMove, STRING_LENGTH - 1, stdin);
+        // Check if the input is a valid move
+        if (strlen(enteredMove) != 1 || !isdigit(enteredMove[0])) {
+            printf("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH - 1);
+        } else {
+            // Convert move to an int
+            move = enteredMove[0] - '0';
 
-		// Remove new-line char
-		enteredMove[strlen(enteredMove) - 1] = 0;
+            if (move >= BOARD_WIDTH)
+                printf("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH - 1);
+            else
+                isRightMove = TRUE;
+        }
+    }
 
-		// Length of entered move is not correct
-		if (strlen(enteredMove) != 1)
-		{
-			printf("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH - 1);
-		}
-
-		// Check if entered move is a number
-		else if (isdigit(enteredMove[0]))
-		{
-
-			// Convert move to an int
-			move = enteredMove[0] - '0';
-
-			if (move >= BOARD_WIDTH)
-				printf("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH - 1);
-			else
-				isRightMove = TRUE;
-		}
-
-		// Entered move is not a number
-		else
-			printf("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH - 1);
-	}
-
-	return move;
+    free(enteredMove);
+    return move;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
+    struct soap soap;                    /** Soap struct */
+    char *serverURL;                     /** Server URL */
+    unsigned int endOfGame;              /** Flag to control the end of the game */
+    conecta4ns__tMessage playerName;     /** Player name */
+    conecta4ns__tBlock gameStatus;       /** Game status */
+    unsigned int playerMove;             /** Player move */
+    int gameId;                          /** Game ID */
+    int resCode;                         /** Return code from server */
 
-	struct soap soap;				 /** Soap struct */
-	char *serverURL;				 /** Server URL */
-	unsigned int endOfGame;			 /** Flag to control the end of the game */
-	conecta4ns__tMessage playerName; /** Player name */
-	conecta4ns__tBlock gameStatus;	 /** Game status */
-	unsigned int playerMove;		 /** Player move */
-	int resCode;					 /** Return code from server */
+    // Init gSOAP environment
+    soap_init(&soap);
 
-	// Init gSOAP environment
-	soap_init(&soap);
+    // Check arguments
+    if (argc != 2) {
+        printf("Usage: %s http://server:port\n", argv[0]);
+        exit(0);
+    }
 
-	// Obtain server address
-	serverURL = argv[1];
+    // Obtain server address
+    serverURL = argv[1];
 
-	// Allocate memory for player name and init
-	playerName.msg = (xsd__string)malloc(STRING_LENGTH);
-	memset(playerName.msg, 0, STRING_LENGTH);
+    // Allocate memory for player name and game status
+    playerName.msg = (xsd__string)malloc(STRING_LENGTH);
+    memset(playerName.msg, 0, STRING_LENGTH);
+    allocClearBlock(&soap, &gameStatus);
 
-	// Allocate memory for game status and init
-	allocClearBlock(&soap, &gameStatus);
+    // Initialize variables
+    resCode = -1;
+    endOfGame = FALSE;
+    gameStatus.code = 0;
 
-	// Init
-	resCode = -1;
-	endOfGame = FALSE;
-	gameStatus.code = 0;
+    // Initialize player's name
+    do {
+        printf("Enter player name: ");
+        fgets(playerName.msg, STRING_LENGTH - 1, stdin);
+        playerName.__size = strlen(playerName.msg);
 
-	// Check arguments
-	if (argc != 2)
-	{
-		printf("Usage: %s http://server:port\n", argv[0]);
-		exit(0);
-	}
+        // Remove '\n' if it's there
+        if (playerName.msg[playerName.__size - 1] == '\n') {
+            playerName.msg[playerName.__size - 1] = 0;
+            playerName.__size--;
+        }
+    } while (playerName.__size <= 2);
 
-	// Init player's name
-	do
-	{
-		printf("Enter player name:");
-		fgets(playerName.msg, STRING_LENGTH - 1, stdin);
-
-		playerName.__size = strlen(playerName.msg);
-
-		// Remove '\n'
-		playerName.msg[playerName.__size - 1] = 0;
-
-	} while (playerName.__size <= 2);
-
-	soap_call_conecta4ns__register(&soap, serverURL, "", playerName, &resCode);
-
-	// Clean the environment
-	soap_destroy(&soap);
-	soap_end(&soap);
-	soap_done(&soap);
-
-	return 0;
-}
-
-/*
-#include "client.h"
-
-#define DEBUG_CLIENT 1
-
-
-unsigned int readMove (){
-
-	xsd__string enteredMove;
-	unsigned int move;
-	unsigned int isRightMove;
-
-		// Init...
-		enteredMove = (xsd__string) malloc (STRING_LENGTH);
-		memset (enteredMove, 0, STRING_LENGTH);
-		isRightMove = FALSE;
-		move = STRING_LENGTH;
-
-		while (!isRightMove){
-
-			printf ("Enter a move [0-%d]:", BOARD_WIDTH-1);
-
-			// Read move
-			fgets (enteredMove, STRING_LENGTH-1, stdin);
-
-			// Remove new-line char
-			enteredMove[strlen(enteredMove)-1] = 0;
-
-			// Length of entered move is not correct
-			if (strlen(enteredMove) != 1){
-				printf ("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH-1);
-			}
-
-			// Check if entered move is a number
-			else if (isdigit(enteredMove[0])){
-
-				// Convert move to an int
-				move =  enteredMove[0] - '0';
-
-				if (move >= BOARD_WIDTH)
-					printf ("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH-1);
-				else
-					isRightMove = TRUE;
-			}
-
-			// Entered move is not a number
-			else
-				printf ("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH-1);
-		}
-
-	return move;
-}
-
-
-int main(int argc, char **argv){
-
-
-
-		// Init gSOAP environment
-		soap_init(&soap);
-
-		// Obtain server address
-		serverURL = argv[1];
-
-		// Allocate memory for player name and init
-		playerName.msg = (xsd__string) malloc (STRING_LENGTH);
-		memset(playerName.msg, 0, STRING_LENGTH);
-
-		// Allocate memory for game status and init
-        allocClearBlock (&soap, &gameStatus);
-  
-		// Init
-		resCode = -1;
-		endOfGame = FALSE;
-		gameStatus.code = 0;
-
-		// Check arguments
-		if (argc !=2) {
-			printf("Usage: %s http://server:port\n",argv[0]);
-			exit(0);
-		}
-
-
-				memset(playerName.msg, 0, STRING_LENGTH);
-				printf ("Enter player name:");
-				fgets(playerName.msg, STRING_LENGTH-1, stdin);
-
-				// Remove '\n'
-				playerName.msg[strlen(playerName.msg)-1] = 0;
-
-
-
-			// Try to register the player
-			    // Llama a soap_call_conecta4ns__register para registrar el jugador
-    if (soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, "", &gameStatus)){
+    // Register the player on the server
+    if (soap_call_conecta4ns__register(&soap, serverURL, "", playerName, &resCode) == SOAP_OK) {
         if (resCode < 0) {
             printf("Error registering player: %d\n", resCode);
-        } else {
-            printf("Player registered successfully with game ID: %d\n", resCode);
+            exit(1);
         }
+        printf("Player registered successfully with game ID: %d\n", resCode);
+        gameId = resCode;  // Save the game ID
     } else {
-		       soap_print_fault(&soap, stderr);
-    
+        soap_print_fault(&soap, stderr);
+        exit(1);
+    }
 
-			// Check for errors...
-			if (soap.error) {
+    // Game loop
+    while (!endOfGame) {
+        // Get the status of the game
+        if (soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus) == SOAP_OK) {
+            printBoard(gameStatus.board, gameStatus.msgStruct.msg);
 
-				soap_print_fault(&soap, stderr);
-				exit(1);
-			
-			}
-	}
+            if (gameStatus.code == TURN_MOVE) {
+                // It's the player's turn
+                playerMove = readMove();
 
- 
-		
-	
-		// While game continues...
-		while (!endOfGame){
-			if(gameStatus.code != GAMEOVER_WIN || gameStatus.code != GAMEOVER_DRAW){ //this if prevents the player who won to get in the getStatus function without freeing the game
+                // Insert the player's chip
+                if (soap_call_conecta4ns__insertChip(&soap, serverURL, "", gameId, playerName, playerMove, &gameStatus) == SOAP_OK) {
+                    printBoard(gameStatus.board, gameStatus.msgStruct.msg);
 
-				soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, "", &gameStatus);
+                    // Check for game end conditions
+                    if (gameStatus.code == GAMEOVER_WIN) {
+                        printf("Congratulations, you won!\n");
+                        endOfGame = TRUE;
+                    } else if (gameStatus.code == GAMEOVER_LOSE) {
+                        printf("Game over. You lost!\n");
+                        endOfGame = TRUE;
+                    } else if (gameStatus.code == GAMEOVER_DRAW) {
+                        printf("It's a draw!\n");
+                        endOfGame = TRUE;
+                    }
+                } else {
+                    soap_print_fault(&soap, stderr);
+                    endOfGame = TRUE;
+                }
+            } else if (gameStatus.code == TURN_WAIT) {
+                // Wait for the opponent's move
+                printf("Waiting for the other player...\n");
+                sleep(2);  // Delay before checking again
+            } else if (gameStatus.code == GAMEOVER_WIN || gameStatus.code == GAMEOVER_LOSE || gameStatus.code == GAMEOVER_DRAW) {
+                // Game over - display final message
+                endOfGame = TRUE;
+                printBoard(gameStatus.board, gameStatus.msgStruct.msg);
+            }
+        } else {
+            soap_print_fault(&soap, stderr);
+            endOfGame = TRUE;
+        }
+    }
 
-				
-				if(gameStatus.code != 1){//while the code is not gameWaitingPlayer
-					
-					if(gameStatus.code == GAMEOVER_LOSE || gameStatus.code == GAMEOVER_DRAW){
+    // Clean the environment
+    free(playerName.msg);
+    soap_destroy(&soap);
+    soap_end(&soap);
+    soap_done(&soap);
 
-						endOfGame = TRUE;
-
-					}else{
-						
-						printBoard(gameStatus.board, gameStatus.msgStruct.msg);
-						
-						if(gameStatus.code == TURN_MOVE){
-
-							playerMove = readMove();
-							//soap_call_conecta4ns__insertChip(&soap, serverURL, "", playerName, playerMove, &gameStatus);
-
-						}
-					}	
-				}
-			}else{ 
-				endOfGame = TRUE;
-			}		
-		}
-		//print the final board
-		printBoard(gameStatus.board, gameStatus.msgStruct.msg);
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-		// Clean the environment
-		soap_destroy(&soap);
-		soap_end(&soap);
-		soap_done(&soap);
-
-  return 0;
+    return 0;
 }
-*/
