@@ -55,22 +55,12 @@ conecta4ns__tPlayer switchPlayer(conecta4ns__tPlayer currentPlayer)
 
 int searchEmptyGame()
 {
-	/*for (int i = 0; i < MAX_GAMES; i++)
-	{
-		if (games[i].status == gameEmpty ||
-			games[i].status == gameWaitingPlayer)
-		{
-			return i;
-		}
-	}
-
-	return ERROR_SERVER_FULL;*/
 	pthread_mutex_lock(&mutexStatusArray);
     int result = ERROR_SERVER_FULL;
     for (int i = 0; i < MAX_GAMES; i++) {
         if (games[i].status == gameEmpty || games[i].status == gameWaitingPlayer) {
             result = i;
-            pthread_mutex_unlock(&mutexStatusArray);  // Libera el mutex antes de retornar
+            pthread_mutex_unlock(&mutexStatusArray);
             return result;
         }
     }
@@ -120,7 +110,7 @@ void copyGameStatusStructure(conecta4ns__tBlock *status, char *message, xsd__str
 int conecta4ns__register(struct soap *soap, conecta4ns__tMessage playerName, int *code)
 {
 
-	int gameIndex = -1;
+	int game_index = -1;
 
 	// Set \0 at the end of the string
 	playerName.msg[playerName.__size] = 0;
@@ -129,7 +119,7 @@ int conecta4ns__register(struct soap *soap, conecta4ns__tMessage playerName, int
 	{
 		printf("[Register] Registering new player -> [%s]\n", playerName.msg);
 	}
-	int game_index = searchEmptyGame();
+	game_index = searchEmptyGame();
 
 	if (game_index == ERROR_SERVER_FULL)
 	{
@@ -137,30 +127,30 @@ int conecta4ns__register(struct soap *soap, conecta4ns__tMessage playerName, int
 		printf("error register game SERVER FULL\n");
 		return SOAP_OK;
 	}
-	pthread_mutex_lock(&games[gameIndex].mutexGame);
+	pthread_mutex_lock(&games[game_index].mutexGame);
 	if (games[game_index].status == gameWaitingPlayer)
 	{
 		if (strcmp(games[game_index].player1Name, playerName.msg)==0)
 		{
 			*code = ERROR_PLAYER_REPEATED;
-			pthread_mutex_unlock(&games[gameIndex].mutexGame);
+			pthread_mutex_unlock(&games[game_index].mutexGame);
 			return SOAP_OK;
 		}
 
 		strcpy(games[game_index].player2Name, playerName.msg);
 		games[game_index].status = gameReady;
-		*code = gameIndex;
-		pthread_cond_signal(&games[gameIndex].condGame);
+		*code = game_index;
+		pthread_cond_signal(&games[game_index].condGame);
 	}
 	else if (games[game_index].status == gameEmpty)
 	{
 		freeGameByIndex(game_index);
 		strcpy(games[game_index].player1Name, playerName.msg);
 		games[game_index].status = gameWaitingPlayer;
-		*code = gameIndex;
+		*code = game_index;
 	}
 
-	 pthread_mutex_unlock(&games[gameIndex].mutexGame);
+	 pthread_mutex_unlock(&games[game_index].mutexGame);
 
 	return SOAP_OK;
 }
@@ -171,14 +161,15 @@ int conecta4ns__getStatus(struct soap *soap, conecta4ns__tMessage playerName, in
     if (DEBUG_SERVER)
         printf("Receiving getStatus() request from -> %s [%d] in game %d\n", playerName.msg, playerName.__size, gameId);
 
-    pthread_mutex_lock(&games[gameId].mutexGame);
 
     conecta4ns__tPlayer player = (strcmp(playerName.msg, games[gameId].player1Name) == 0) ? player1 : player2;
 
+    pthread_mutex_lock(&games[gameId].mutexGame);
+
     // Espera a que sea el turno del jugador y el juego no haya terminado
-    //while (games[gameId].currentPlayer != player && !games[gameId].endOfGame) {
-      //  pthread_cond_wait(&games[gameId].condGame, &games[gameId].mutexGame);
-    //}
+    while (games[gameId].currentPlayer != player && !games[gameId].endOfGame) {
+        pthread_cond_wait(&games[gameId].condGame, &games[gameId].mutexGame);
+    }
 
     if (games[gameId].endOfGame) {
         // Si el juego ha terminado, determina el estado final para el jugador
@@ -208,8 +199,8 @@ int conecta4ns__insertChip(struct soap *soap, int id_game, conecta4ns__tMessage 
 
 	pthread_mutex_lock(&games[id_game].mutexGame);
 
-    conecta4ns__tPlayer player = switchPlayer(games[id_game].currentPlayer);
-
+	conecta4ns__tPlayer player = games[id_game].currentPlayer;
+	
 	if (!strcmp(playerName.msg, games[id_game].player1Name) ||
 		!strcmp(playerName.msg, games[id_game].player2Name))
 	{
@@ -236,6 +227,10 @@ int conecta4ns__insertChip(struct soap *soap, int id_game, conecta4ns__tMessage 
 	{
 		*status = GAMEOVER_DRAW;
 	}
+
+	games[id_game].currentPlayer = switchPlayer(games[id_game].currentPlayer);
+	//notificamos de el cambio de turno
+	pthread_cond_signal(&games[id_game].condGame);
     pthread_mutex_unlock(&games[id_game].mutexGame);
 	return SOAP_OK;
 }
