@@ -2,7 +2,8 @@
 
 #define DEBUG_CLIENT 1
 
-unsigned int readMove() {
+unsigned int readMove()
+{
     xsd__string enteredMove;
     unsigned int move;
     unsigned int isRightMove;
@@ -13,7 +14,8 @@ unsigned int readMove() {
     isRightMove = FALSE;
     move = STRING_LENGTH;
 
-    while (!isRightMove) {
+    while (!isRightMove)
+    {
         printf("Enter a move [0-%d]: ", BOARD_WIDTH - 1);
 
         // Read move
@@ -23,9 +25,12 @@ unsigned int readMove() {
         enteredMove[strlen(enteredMove) - 1] = 0;
 
         // Check if the input is a valid move
-        if (strlen(enteredMove) != 1 || !isdigit(enteredMove[0])) {
+        if (strlen(enteredMove) != 1 || !isdigit(enteredMove[0]))
+        {
             printf("Entered move is not correct. It must be a number in the interval [0-%d]\n", BOARD_WIDTH - 1);
-        } else {
+        }
+        else
+        {
             // Convert move to an int
             move = enteredMove[0] - '0';
 
@@ -40,21 +45,23 @@ unsigned int readMove() {
     return move;
 }
 
-int main(int argc, char **argv) {
-    struct soap soap;                    /** Soap struct */
-    char *serverURL;                     /** Server URL */
-    unsigned int endOfGame;              /** Flag to control the end of the game */
-    conecta4ns__tMessage playerName;     /** Player name */
-    conecta4ns__tBlock gameStatus;       /** Game status */
-    unsigned int playerMove;             /** Player move */
-    int gameId;                          /** Game ID */
-    int resCode;                         /** Return code from server */
+int main(int argc, char **argv)
+{
+    struct soap soap;                /** Soap struct */
+    char *serverURL;                 /** Server URL */
+    unsigned int endOfGame;          /** Flag to control the end of the game */
+    conecta4ns__tMessage playerName; /** Player name */
+    conecta4ns__tBlock gameStatus;   /** Game status */
+    unsigned int playerMove;         /** Player move */
+    int gameId;                      /** Game ID */
+    int resCode;                     /** Return code from server */
 
     // Init gSOAP environment
     soap_init(&soap);
 
     // Check arguments
-    if (argc != 2) {
+    if (argc != 2)
+    {
         printf("Usage: %s http://server:port\n", argv[0]);
         exit(0);
     }
@@ -73,70 +80,93 @@ int main(int argc, char **argv) {
     gameStatus.code = 0;
 
     // Initialize player's name
-    do {
+    do
+    {
         printf("Enter player name: ");
         fgets(playerName.msg, STRING_LENGTH - 1, stdin);
         playerName.__size = strlen(playerName.msg);
 
         // Remove '\n' if it's there
-        if (playerName.msg[playerName.__size - 1] == '\n') {
+        if (playerName.msg[playerName.__size - 1] == '\n')
+        {
             playerName.msg[playerName.__size - 1] = 0;
             playerName.__size--;
         }
     } while (playerName.__size <= 2);
 
     // Register the player on the server
-    if (soap_call_conecta4ns__register(&soap, serverURL, "", playerName, &resCode) == SOAP_OK) {
-        if (resCode < 0) {
+    if (soap_call_conecta4ns__register(&soap, serverURL, "", playerName, &resCode) == SOAP_OK)
+    {
+        if (resCode < 0)
+        {
             printf("Error registering player: %d\n", resCode);
             exit(1);
         }
         printf("Player registered successfully with game ID: %d\n", resCode);
-        gameId = resCode;  // Save the game ID
-    } else {
+        gameId = resCode; // Save the game ID
+    }
+    else
+    {
         soap_print_fault(&soap, stderr);
         exit(1);
     }
 
     // Game loop
-    while (!endOfGame) {
+    while (!endOfGame)
+    {
         // Get the status of the game
-        if (soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus) == SOAP_OK) {
+        if (soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus) == SOAP_OK)
+        {
             printBoard(gameStatus.board, gameStatus.msgStruct.msg);
 
-            if (gameStatus.code == TURN_MOVE) {
+            if (gameStatus.code == TURN_MOVE)
+            {
                 // It's the player's turn
                 playerMove = readMove();
 
                 // Insert the player's chip
-                if (soap_call_conecta4ns__insertChip(&soap, serverURL, "", gameId, playerName, playerMove, &gameStatus) == SOAP_OK) {
-                    printBoard(gameStatus.board, gameStatus.msgStruct.msg);
+                int status_insert;
+                if (soap_call_conecta4ns__insertChip(&soap, serverURL, "", gameId, playerName, playerMove, &status_insert) == SOAP_OK)
+                {
 
-                    // Check for game end conditions
-                    if (gameStatus.code == GAMEOVER_WIN) {
-                        printf("Congratulations, you won!\n");
-                        endOfGame = TRUE;
-                    } else if (gameStatus.code == GAMEOVER_LOSE) {
-                        printf("Game over. You lost!\n");
-                        endOfGame = TRUE;
-                    } else if (gameStatus.code == GAMEOVER_DRAW) {
-                        printf("It's a draw!\n");
-                        endOfGame = TRUE;
-                    }
-                } else {
+                    printBoard(gameStatus.board, gameStatus.msgStruct.msg);
+                }
+                else
+                {
                     soap_print_fault(&soap, stderr);
                     endOfGame = TRUE;
                 }
-            } else if (gameStatus.code == TURN_WAIT) {
+            }
+            else if (gameStatus.code == TURN_WAIT)
+            {
                 // Wait for the opponent's move
                 printf("Waiting for the other player...\n");
-                sleep(2);  // Delay before checking again
-            } else if (gameStatus.code == GAMEOVER_WIN || gameStatus.code == GAMEOVER_LOSE || gameStatus.code == GAMEOVER_DRAW) {
-                // Game over - display final message
+                sleep(2); // Delay before checking again
+            }
+            else if (gameStatus.code == GAMEOVER_LOSE)
+            {
                 endOfGame = TRUE;
+                printf("Game ends, you lose\n");
+                soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
                 printBoard(gameStatus.board, gameStatus.msgStruct.msg);
             }
-        } else {
+            else if (gameStatus.code == GAMEOVER_WIN)
+            {
+                endOfGame = TRUE;
+                printf("Game ends, you win\n");
+                soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
+                printBoard(gameStatus.board, gameStatus.msgStruct.msg);
+            }
+            else if (gameStatus.code == GAMEOVER_DRAW)
+            {
+                endOfGame = TRUE;
+                printf("Game ends in draw\n");
+                soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
+                printBoard(gameStatus.board, gameStatus.msgStruct.msg);
+            }
+        }
+        else
+        {
             soap_print_fault(&soap, stderr);
             endOfGame = TRUE;
         }
