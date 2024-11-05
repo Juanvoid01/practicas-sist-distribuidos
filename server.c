@@ -173,12 +173,13 @@ int conecta4ns__getStatus(struct soap *soap, conecta4ns__tMessage playerName, in
 
     if (games[gameId].endOfGame) {
         // Si el juego ha terminado, determina el estado final para el jugador
-        if (checkWinner(games[gameId].board, player))
-            status->code = GAMEOVER_WIN;
-        else if (isBoardFull(games[gameId].board))
-            status->code = GAMEOVER_DRAW;
-        else
-            status->code = GAMEOVER_LOSE;
+        if (checkWinner(games[gameId].board, player)){
+            status->code = GAMEOVER_WIN;freeGameByIndex(gameId);
+		}
+        else if (isBoardFull(games[gameId].board)){
+            status->code = GAMEOVER_DRAW;freeGameByIndex(gameId);}
+        else{
+            status->code = GAMEOVER_LOSE;freeGameByIndex(gameId);}
     } else {
         // Si el juego no ha terminado, asigna el turno al jugador
         status->code = TURN_MOVE;
