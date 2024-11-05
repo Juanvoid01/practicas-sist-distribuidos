@@ -155,6 +155,17 @@ int conecta4ns__register(struct soap *soap, conecta4ns__tMessage playerName, int
 int conecta4ns__getStatus(struct soap *soap, conecta4ns__tMessage playerName, int gameId, conecta4ns__tBlock *status)
 {
 
+	if(games[gameId].status == gameWaitingPlayer)
+	{
+		status->code = 69;
+		return SOAP_OK;
+	}
+	else if(games[gameId].status == gameEmpty)
+	{
+		status->code = 69;
+		return SOAP_OK;
+	}
+
 	if (!strcmp(playerName.msg, games[gameId].player1Name) ||
 		!strcmp(playerName.msg, games[gameId].player2Name))
 	{

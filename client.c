@@ -63,6 +63,7 @@ int main(int argc, char **argv)
 	conecta4ns__tBlock gameStatus;	 /** Game status */
 	unsigned int playerMove;		 /** Player move */
 	int resCode;					 /** Return code from server */
+	int idGame;
 
 	// Init gSOAP environment
 	soap_init(&soap);
@@ -102,7 +103,52 @@ int main(int argc, char **argv)
 
 	} while (playerName.__size <= 2);
 
-	soap_call_conecta4ns__register(&soap, serverURL, "", playerName, &resCode);
+	if (soap_call_conecta4ns__register(&soap, serverURL, "", playerName, &idGame))
+	{
+		if (idGame == ERROR_SERVER_FULL)
+		{
+			printf("Error register, ERROR_SERVER_FULL\n", idGame);
+		}
+		else if (idGame == ERROR_PLAYER_REPEATED)
+		{
+			printf("Error register, ERROR_PLAYER_REPEATED\n", idGame);
+		}
+
+		printf("your id game is: %d", idGame);
+	}
+
+	int gameReady = FALSE;
+	do
+	{
+		soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, "", &gameStatus);
+		gameReady = gameStatus.code == 69 ? FALSE : TRUE;
+
+	} while (!gameReady);
+
+	while (!endOfGame)
+	{
+		if (soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, "", &gameStatus))
+		{
+			if (gameStatus.code == ERROR_PLAYER_NOT_FOUND)
+			{
+				printf("Error getStatus, player not found\n", resCode);
+			}
+		}
+
+		printBoard(gameStatus.board, "move\n");
+
+		while (gameStatus.code == TURN_MOVE)
+		{
+			playerMove = readMove();
+			soap_call_conecta4ns__insertChip(&soap, serverURL, "", idGame, playerName, playerMove, &resCode);
+
+			if (!endOfGame)
+			{
+				printBoard(gameStatus.board, "win\n");
+				break;
+			}
+		}
+	}
 
 	// Clean the environment
 	soap_destroy(&soap);
@@ -181,8 +227,8 @@ int main(int argc, char **argv){
 		memset(playerName.msg, 0, STRING_LENGTH);
 
 		// Allocate memory for game status and init
-        allocClearBlock (&soap, &gameStatus);
-  
+		allocClearBlock (&soap, &gameStatus);
+
 		// Init
 		resCode = -1;
 		endOfGame = FALSE;
@@ -205,79 +251,79 @@ int main(int argc, char **argv){
 
 
 			// Try to register the player
-			    // Llama a soap_call_conecta4ns__register para registrar el jugador
-    if (soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, "", &gameStatus)){
-        if (resCode < 0) {
-            printf("Error registering player: %d\n", resCode);
-        } else {
-            printf("Player registered successfully with game ID: %d\n", resCode);
-        }
-    } else {
-		       soap_print_fault(&soap, stderr);
-    
+				// Llama a soap_call_conecta4ns__register para registrar el jugador
+	if (soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, "", &gameStatus)){
+		if (resCode < 0) {
+			printf("Error registering player: %d\n", resCode);
+		} else {
+			printf("Player registered successfully with game ID: %d\n", resCode);
+		}
+	} else {
+			   soap_print_fault(&soap, stderr);
+
 
 			// Check for errors...
 			if (soap.error) {
 
 				soap_print_fault(&soap, stderr);
 				exit(1);
-			
+
 			}
 	}
 
- 
-		
-	
+
+
+
 		// While game continues...
 		while (!endOfGame){
 			if(gameStatus.code != GAMEOVER_WIN || gameStatus.code != GAMEOVER_DRAW){ //this if prevents the player who won to get in the getStatus function without freeing the game
 
 				soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, "", &gameStatus);
 
-				
+
 				if(gameStatus.code != 1){//while the code is not gameWaitingPlayer
-					
+
 					if(gameStatus.code == GAMEOVER_LOSE || gameStatus.code == GAMEOVER_DRAW){
 
 						endOfGame = TRUE;
 
 					}else{
-						
+
 						printBoard(gameStatus.board, gameStatus.msgStruct.msg);
-						
+
 						if(gameStatus.code == TURN_MOVE){
 
 							playerMove = readMove();
 							//soap_call_conecta4ns__insertChip(&soap, serverURL, "", playerName, playerMove, &gameStatus);
 
 						}
-					}	
+					}
 				}
-			}else{ 
+			}else{
 				endOfGame = TRUE;
-			}		
+			}
 		}
 		//print the final board
 		printBoard(gameStatus.board, gameStatus.msgStruct.msg);
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 		// Clean the environment
 		soap_destroy(&soap);
