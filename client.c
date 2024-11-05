@@ -126,12 +126,7 @@ int main(int argc, char **argv)
 
                 // Insert the player's chip
                 int status_insert;
-                if (soap_call_conecta4ns__insertChip(&soap, serverURL, "", gameId, playerName, playerMove, &status_insert) == SOAP_OK)
-                {
-
-                    printBoard(gameStatus.board, gameStatus.msgStruct.msg);
-                }
-                else
+                if (soap_call_conecta4ns__insertChip(&soap, serverURL, "", gameId, playerName, playerMove, &status_insert) != SOAP_OK)
                 {
                     soap_print_fault(&soap, stderr);
                     endOfGame = TRUE;
@@ -147,22 +142,22 @@ int main(int argc, char **argv)
             {
                 endOfGame = TRUE;
                 printf("Game ends, you lose\n");
-                soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
-                printBoard(gameStatus.board, gameStatus.msgStruct.msg);
+                // soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
+                // printBoard(gameStatus.board, gameStatus.msgStruct.msg);
             }
             else if (gameStatus.code == GAMEOVER_WIN)
             {
                 endOfGame = TRUE;
                 printf("Game ends, you win\n");
-                soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
-                printBoard(gameStatus.board, gameStatus.msgStruct.msg);
+                // soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
+                // printBoard(gameStatus.board, gameStatus.msgStruct.msg);
             }
             else if (gameStatus.code == GAMEOVER_DRAW)
             {
                 endOfGame = TRUE;
                 printf("Game ends in draw\n");
-                soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
-                printBoard(gameStatus.board, gameStatus.msgStruct.msg);
+                // soap_call_conecta4ns__getStatus(&soap, serverURL, "", playerName, gameId, &gameStatus);
+                // printBoard(gameStatus.board, gameStatus.msgStruct.msg);
             }
         }
         else
