@@ -192,20 +192,20 @@ int conecta4ns__getStatus(struct soap *soap, conecta4ns__tMessage playerName, in
 }
 
 
-int conecta4ns__insertChip(struct soap *soap, int id_game, conecta4ns__tMessage playerName, int column, int *status)
+int conecta4ns__insertChip(struct soap *soap, int id_game, conecta4ns__tMessage playerName, int column, conecta4ns__tBlock *status)
 {
 	 if (DEBUG_SERVER)
         printf("Inserting chip for player [%s] in game %d, column %d\n", playerName.msg, id_game, column);
 
 	pthread_mutex_lock(&games[id_game].mutexGame);
-
+			printf("lock hecho\n");
 	conecta4ns__tPlayer player = games[id_game].currentPlayer;
 	
 	if (!strcmp(playerName.msg, games[id_game].player1Name) ||
 		!strcmp(playerName.msg, games[id_game].player2Name))
 	{
 		printf("Player not found\n");
-		*status = ERROR_PLAYER_NOT_FOUND;
+		status->code = ERROR_PLAYER_NOT_FOUND;
 		return SOAP_OK;
 	}
 
@@ -217,18 +217,21 @@ int conecta4ns__insertChip(struct soap *soap, int id_game, conecta4ns__tMessage 
 
 
 	insertChip(games[id_game].board, player, column);
-
+printf("insert hecho\n");
 	if (checkWinner(games[id_game].board, player))
 	{
-		*status = GAMEOVER_WIN;
+		status->code = GAMEOVER_WIN;
 		games[id_game].endOfGame = TRUE;
 	}
 	else if (isBoardFull(games[id_game].board))
 	{
-		*status = GAMEOVER_DRAW;
+		status->code = GAMEOVER_DRAW;
 	}
 
+    copyGameStatusStructure(status, "Game status updated", games[id_game].board, status->code);
+	printf("copy hecho\n");
 	games[id_game].currentPlayer = switchPlayer(games[id_game].currentPlayer);
+	printf("switch hecho\n");
 	//notificamos de el cambio de turno
 	pthread_cond_signal(&games[id_game].condGame);
     pthread_mutex_unlock(&games[id_game].mutexGame);
