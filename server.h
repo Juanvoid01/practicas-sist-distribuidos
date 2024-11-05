@@ -22,6 +22,8 @@ typedef struct game{
 	tGameState status;					/** Flag to indicate the status of this game */
 	
 	// Mutex and condition variable here!!!
+	pthread_mutex_t mutexGame;             /** Mutex to protect game state access */
+    pthread_cond_t condGame;               /** Condition variable for player turns */
 
 }tGame;
 

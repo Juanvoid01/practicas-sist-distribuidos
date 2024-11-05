@@ -43,6 +43,8 @@ void initServerStructures()
 		games[i].status = gameEmpty;
 
 		// Init mutex and cond variable
+		pthread_mutex_init(&games[i].mutexGame, NULL);
+        pthread_cond_init(&games[i].condGame, NULL);
 	}
 }
 
@@ -53,7 +55,7 @@ conecta4ns__tPlayer switchPlayer(conecta4ns__tPlayer currentPlayer)
 
 int searchEmptyGame()
 {
-	for (int i = 0; i < MAX_GAMES; i++)
+	/*for (int i = 0; i < MAX_GAMES; i++)
 	{
 		if (games[i].status == gameEmpty ||
 			games[i].status == gameWaitingPlayer)
@@ -62,7 +64,18 @@ int searchEmptyGame()
 		}
 	}
 
-	return ERROR_SERVER_FULL;
+	return ERROR_SERVER_FULL;*/
+	pthread_mutex_lock(&mutexStatusArray);
+    int result = ERROR_SERVER_FULL;
+    for (int i = 0; i < MAX_GAMES; i++) {
+        if (games[i].status == gameEmpty || games[i].status == gameWaitingPlayer) {
+            result = i;
+            pthread_mutex_unlock(&mutexStatusArray);  // Libera el mutex antes de retornar
+            return result;
+        }
+    }
+    pthread_mutex_unlock(&mutexStatusArray);
+    return result;
 }
 
 int checkPlayer(xsd__string playerName, int gameId)
@@ -73,11 +86,11 @@ int checkPlayer(xsd__string playerName, int gameId)
 
 void freeGameByIndex(int index)
 {
-	initBoard(games[index].board);
-	games[index].endOfGame = TRUE;
-	games[index].status = gameEmpty;
-	memset(games[index].player1Name, 0, STRING_LENGTH);
-	memset(games[index].player2Name, 0, STRING_LENGTH);
+	initBoard(games[index].board);       // Reinicia el tablero
+    games[index].endOfGame = FALSE;      // Reinicia el indicador de fin de juego
+    games[index].status = gameEmpty;     // Marca el juego como vacío
+    memset(games[index].player1Name, 0, STRING_LENGTH);
+    memset(games[index].player2Name, 0, STRING_LENGTH);
 }
 
 void copyGameStatusStructure(conecta4ns__tBlock *status, char *message, xsd__string board, int newCode)
@@ -108,7 +121,6 @@ int conecta4ns__register(struct soap *soap, conecta4ns__tMessage playerName, int
 {
 
 	int gameIndex = -1;
-	int result = 0;
 
 	// Set \0 at the end of the string
 	playerName.msg[playerName.__size] = 0;
@@ -121,97 +133,83 @@ int conecta4ns__register(struct soap *soap, conecta4ns__tMessage playerName, int
 
 	if (game_index == ERROR_SERVER_FULL)
 	{
-		result = ERROR_SERVER_FULL;
+		*code = ERROR_SERVER_FULL;
 		printf("error register game SERVER FULL\n");
 		return SOAP_OK;
 	}
-
+	pthread_mutex_lock(&games[gameIndex].mutexGame);
 	if (games[game_index].status == gameWaitingPlayer)
 	{
-		if (strcmp(games[game_index].player1Name, playerName.msg))
+		if (strcmp(games[game_index].player1Name, playerName.msg)==0)
 		{
-			result = ERROR_PLAYER_REPEATED;
+			*code = ERROR_PLAYER_REPEATED;
+			pthread_mutex_unlock(&games[gameIndex].mutexGame);
 			return SOAP_OK;
 		}
-		freeGameByIndex(game_index);
 
 		strcpy(games[game_index].player2Name, playerName.msg);
 		games[game_index].status = gameReady;
+		*code = gameIndex;
+		pthread_cond_signal(&games[gameIndex].condGame);
 	}
 	else if (games[game_index].status == gameEmpty)
 	{
 		freeGameByIndex(game_index);
 		strcpy(games[game_index].player1Name, playerName.msg);
 		games[game_index].status = gameWaitingPlayer;
+		*code = gameIndex;
 	}
 
-	result = game_index;
-
-	*code = result;
+	 pthread_mutex_unlock(&games[gameIndex].mutexGame);
 
 	return SOAP_OK;
 }
+int conecta4ns__getStatus(struct soap *soap, conecta4ns__tMessage playerName, int gameId, conecta4ns__tBlock *status) {
+    playerName.msg[playerName.__size] = 0; // Asegura el final de cadena
+    allocClearBlock(soap, status); // Limpia la estructura de estado para el cliente
 
-int conecta4ns__getStatus(struct soap *soap, conecta4ns__tMessage playerName, int gameId, conecta4ns__tBlock *status)
-{
+    if (DEBUG_SERVER)
+        printf("Receiving getStatus() request from -> %s [%d] in game %d\n", playerName.msg, playerName.__size, gameId);
 
-	if(games[gameId].status == gameWaitingPlayer)
-	{
-		status->code = 69;
-		return SOAP_OK;
-	}
-	else if(games[gameId].status == gameEmpty)
-	{
-		status->code = 69;
-		return SOAP_OK;
-	}
+    pthread_mutex_lock(&games[gameId].mutexGame);
 
-	if (!strcmp(playerName.msg, games[gameId].player1Name) ||
-		!strcmp(playerName.msg, games[gameId].player2Name))
-	{
-		printf("Player not found\n");
-		status->code = ERROR_PLAYER_NOT_FOUND;
-		return SOAP_OK;
-	}
+    conecta4ns__tPlayer player = (strcmp(playerName.msg, games[gameId].player1Name) == 0) ? player1 : player2;
 
-	char messageToPlayer[STRING_LENGTH];
+    // Espera a que sea el turno del jugador y el juego no haya terminado
+    //while (games[gameId].currentPlayer != player && !games[gameId].endOfGame) {
+      //  pthread_cond_wait(&games[gameId].condGame, &games[gameId].mutexGame);
+    //}
 
-	// Set \0 at the end of the string and alloc memory for the status
-	playerName.msg[playerName.__size] = 0;
-	allocClearBlock(soap, status);
+    if (games[gameId].endOfGame) {
+        // Si el juego ha terminado, determina el estado final para el jugador
+        if (checkWinner(games[gameId].board, player))
+            status->code = GAMEOVER_WIN;
+        else if (isBoardFull(games[gameId].board))
+            status->code = GAMEOVER_DRAW;
+        else
+            status->code = GAMEOVER_LOSE;
+    } else {
+        // Si el juego no ha terminado, asigna el turno al jugador
+        status->code = TURN_MOVE;
+    }
 
-	if (DEBUG_SERVER)
-	{
-		printf("Receiving getStatus() request from -> %s [%d] in game %d\n", playerName.msg, playerName.__size, gameId);
-	}
+    // Copia el estado del juego y desbloquea el mutex
+    copyGameStatusStructure(status, "Game status updated", games[gameId].board, status->code);
+    pthread_mutex_unlock(&games[gameId].mutexGame);
 
-	conecta4ns__tPlayer player = strcmp(playerName.msg, games[gameId].player1Name) ? player1 : player2;
-
-	if (games[gameId].endOfGame == TRUE)
-	{
-		if (checkWinner(games[gameId].board, player))
-		{
-			status->code = GAMEOVER_WIN;
-		}
-		else if (isBoardFull(games[gameId].board))
-		{
-			status->code = GAMEOVER_DRAW;
-		}
-		else
-		{
-			status->code = GAMEOVER_LOSE;
-		}
-	}
-
-	status->msgStruct;
-	status->__size;
-	strcpy(status->board, games[gameId].board);
-
-	return SOAP_OK;
+    return SOAP_OK;
 }
+
 
 int conecta4ns__insertChip(struct soap *soap, int id_game, conecta4ns__tMessage playerName, int column, int *status)
 {
+	 if (DEBUG_SERVER)
+        printf("Inserting chip for player [%s] in game %d, column %d\n", playerName.msg, id_game, column);
+
+	pthread_mutex_lock(&games[id_game].mutexGame);
+
+    conecta4ns__tPlayer player = switchPlayer(games[id_game].currentPlayer);
+
 	if (!strcmp(playerName.msg, games[id_game].player1Name) ||
 		!strcmp(playerName.msg, games[id_game].player2Name))
 	{
@@ -226,7 +224,6 @@ int conecta4ns__insertChip(struct soap *soap, int id_game, conecta4ns__tMessage 
 		return SOAP_OK;
 	}
 
-	conecta4ns__tPlayer player = strcmp(playerName.msg, games[id_game].player1Name) ? player1 : player2;
 
 	insertChip(games[id_game].board, player, column);
 
@@ -239,7 +236,7 @@ int conecta4ns__insertChip(struct soap *soap, int id_game, conecta4ns__tMessage 
 	{
 		*status = GAMEOVER_DRAW;
 	}
-
+    pthread_mutex_unlock(&games[id_game].mutexGame);
 	return SOAP_OK;
 }
 
