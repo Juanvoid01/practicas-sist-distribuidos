@@ -2,32 +2,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug Server",
+            "name": "Debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/server",
-            "args": ["2000"],  // Pass port 2000 to the server
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "preLaunchTask": "build all",  // Build both the server and client before launching
-            "miDebuggerPath": "/usr/bin/gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Debug Client",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/client",
-            "args": ["http://localhost:2000"],  // Pass IP and port to the client
+            "program": "${workspaceFolder}/lifeGame",
+            "args": ["100 100 10 step imageOutput static"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

@@ -1,9 +1,9 @@
 {
-    "files.associations": {
-        "clientgame.h": "c",
-        "utils.h": "c",
-        "gametypes.h": "c",
-        "system_error": "c",
-        "server.h": "c"
-    }
+    "C_Cpp.default.includePath": [
+        "/usr/include",
+        "/home/juan/openmpi-2.0.1/include",
+        "/usr/include/SDL2"
+    ],
+    "C_Cpp.default.compilerPath": "/usr/bin/mpicc",
+    "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
 }
