@@ -2,6 +2,7 @@ clientGame
 serverGame
 client
 server
+lifeGame
 game_results.txt
 
 *.xml
