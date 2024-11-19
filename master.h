@@ -11,3 +11,7 @@
 #define ITER_CATACLYSM 5
 
 
+void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, int worldHeight, 
+                   int totalIterations, int autoMode, int distModeStatic, int grainSize, char *outputFile);
+
+

@@ -151,7 +151,8 @@ int main(int argc, char *argv[])
 		// TODO: Invoke the master subprogram
 
 		// call execute master
-
+		executeMaster(window, renderer, worldWidth, worldHeight, totalIterations,
+					  autoMode, distModeStatic, grainSize, outputFile);
 		// Set timer
 		endTime = MPI_Wtime();
 		printf("Total execution time:%f seconds\n", endTime - startTime);
@@ -161,5 +162,6 @@ int main(int argc, char *argv[])
 	else
 		// TODO: Invoke the worker subprogram
 		// call execute worker
-		return 0;
+		executeWorker(worldWidth, worldHeight, grainSize);
+	return 0;
 }

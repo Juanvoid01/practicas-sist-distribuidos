@@ -5,3 +5,4 @@
 #define DEBUG_WORKER 0
 
 
+void executeWorker(int worldWidth, int worldHeight, int grainSize);
