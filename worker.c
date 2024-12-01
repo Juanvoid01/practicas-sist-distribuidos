@@ -1,57 +1,145 @@
 #include "worker.h"
 #include "types.h"
 
-//int countLiveNeighbors(portion, row, col, worldWidth, worldHeight);
+void updateCell(tCoordinate *cellCoord,
+                unsigned short *worldPart,
+                unsigned short *topWorldPart,
+                unsigned short *bottomWorldPart,
+                int worldWidth,
+                int worldPartHeight);
 
-void executeWorker(int worldIni, int worldPartWidth, int worldPartHeight)
+void updateWorld(unsigned short *worldPart,
+                 unsigned short *topWorldPart,
+                 unsigned short *bottomWorldPart,
+                 int worldWidth,
+                 int worldPartHeight);
+
+void executeWorker(int worldWidth, int worldPartHeight)
 {
     MPI_Status status;
-    void *worldPart;
-    const int worldPartSize = worldPartWidth * worldPartHeight;
+    int worldPartSize = worldWidth * worldPartHeight;
+    unsigned short *worldPart = (unsigned short *)malloc(worldPartSize * sizeof(unsigned short));
+    unsigned short *topWorldPart = (unsigned short *)malloc(worldWidth * sizeof(unsigned short));
+    unsigned short *bottomWorldPart = (unsigned short *)malloc(worldWidth * sizeof(unsigned short));
 
-    // Recibe la porción de tablero a procesar
-    MPI_Recv(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, worldIni, MPI_COMM_WORLD, &status);
+    // Recibe la porción de mundo a procesar
+    MPI_Recv(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 0, MPI_COMM_WORLD, &status);
+    // Recibe la fila superior de la parte del mundo
+    MPI_Recv(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, MASTER, 1, MPI_COMM_WORLD, &status);
+    // Recibe la fila inferior de la parte del mundo
+    MPI_Recv(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, MASTER, 2, MPI_COMM_WORLD, &status);
 
-    unsigned char * cell = worldPart;
-    unsigned char * cellUp;
-    unsigned char * cellDown;
-    unsigned char * cellLeft;
-    unsigned char * cellRight;
+    updateWorld(worldPart, topWorldPart, bottomWorldPart, worldWidth, worldPartHeight);
 
-    unsigned int neighbours = 0;
-
-    for (int i = 0; i < worldPartSize; i++)
-    {
-        cell++;
-
-        getCellUp(cell, cellUp);
-        getCellDown(cell, cellDown);
-        getCellLeft(cell, worldPartWidth, cellLeft);
-        getCellRight(cell, worldPartWidth, cellRight);
-
-        neighbours = *cellUp + *cellDown + *cellLeft + *cellRight;
-
-        if(neighbours == 0)
-        {
-            calculateLonelyCell();
-            *cell = CELL_DEAD;
-        }
-        else if(neighbours < 2)
-        {
-            *cell = CELL_DEAD;
-        }
-        else if(neighbours <= 3)
-        {
-            *cell = CELL_LIVE;
-        }
-        else if(neighbours > 3)
-        {
-            *cell = CELL_DEAD;
-        }
-
-    }
-    
     // Envía el resultado de la porción procesada de vuelta al master
     MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 0, MPI_COMM_WORLD);
-    
+}
+
+void updateCell(tCoordinate *cellCoord,
+                unsigned short *worldPart,
+                unsigned short *topWorldPart,
+                unsigned short *bottomWorldPart,
+                int worldWidth,
+                int worldPartHeight)
+{
+    tCoordinate cellCoordUp;
+    tCoordinate cellCoordDown;
+    tCoordinate cellCoordRight;
+    tCoordinate cellCoordLeft;
+
+    getCellLeft(cellCoord, worldWidth, &cellCoordLeft);
+    getCellRight(cellCoord, worldWidth, &cellCoordRight);
+
+    if (cellCoord->row > 0)
+    {
+        getCellUp(cellCoord, &cellCoordUp);
+    }
+
+    if (cellCoord->row < worldPartHeight - 1)
+    {
+        getCellDown(cellCoord, &cellCoordDown);
+    }
+
+    unsigned short cell = getCellAtWorld(cellCoord, worldPart, worldWidth);
+    unsigned int neighbours = 0;
+
+    // Check up
+    if (cellCoord->row > 0)
+    {
+        if (getCellAtWorld(&cellCoordUp, worldPart, worldWidth) == CELL_LIVE)
+        {
+            neighbours++;
+        }
+    }
+    else
+    {
+        if (topWorldPart[cellCoord->col] == CELL_LIVE)
+        {
+            neighbours++;
+        }
+    }
+
+    // Check down
+    if (cellCoord->row < worldPartHeight - 1)
+    {
+        if (getCellAtWorld(&cellCoordDown, worldPart, worldWidth) == CELL_LIVE)
+        {
+            neighbours++;
+        }
+    }
+    else
+    {
+        if (bottomWorldPart[cellCoord->col] == CELL_LIVE)
+        {
+            neighbours++;
+        }
+    }
+
+    // Check left
+    if (getCellAtWorld(&cellCoordLeft, worldPart, worldWidth) == CELL_LIVE)
+    {
+        neighbours++;
+    }
+    // Check right
+    if (getCellAtWorld(&cellCoordRight, worldPart, worldWidth) == CELL_LIVE)
+    {
+        neighbours++;
+    }
+
+    // Lonely cell?
+    if (cell == CELL_EMPTY && (neighbours == 0))
+    {
+        calculateLonelyCell();
+    }
+
+    if (cell == CELL_LIVE && ((neighbours == 2) || (neighbours == 3)))
+    { // Cell is still alive
+        setCellAt(cellCoord, worldPart, worldWidth, CELL_LIVE);
+    }
+    else if (cell == CELL_EMPTY && (neighbours == 3))
+    { // New cell is born
+        setCellAt(cellCoord, worldPart, worldWidth, CELL_LIVE);
+    }
+    else
+    { // Cell is dead
+        setCellAt(cellCoord, worldPart, worldWidth, CELL_EMPTY);
+    }
+}
+
+void updateWorld(unsigned short *worldPart,
+                 unsigned short *topWorldPart,
+                 unsigned short *bottomWorldPart,
+                 int worldWidth,
+                 int worldPartHeight)
+{
+
+    tCoordinate cell;
+
+    for (int col = 0; col < worldWidth; col++)
+        for (int row = 0; row < worldPartHeight; row++)
+        {
+            cell.row = row;
+            cell.col = col;
+            updateCell(&cell, worldPart, topWorldPart, bottomWorldPart, worldWidth, worldPartHeight);
+        }
 }

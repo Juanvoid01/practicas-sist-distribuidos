@@ -6,4 +6,7 @@
     ],
     "C_Cpp.default.compilerPath": "/usr/bin/mpicc",
     "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
+    "files.associations": {
+        "world.h": "c"
+    },
 }

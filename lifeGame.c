@@ -157,11 +157,12 @@ int main(int argc, char *argv[])
 		endTime = MPI_Wtime();
 		printf("Total execution time:%f seconds\n", endTime - startTime);
 	}
-
-	// Workers
-	else
+	else	// Workers
+	{
 		// TODO: Invoke the worker subprogram
 		// call execute worker
-		executeWorker(worldWidth, worldHeight, grainSize);
+		executeWorker(worldWidth, worldHeight);
+	}
+
 	return 0;
 }
