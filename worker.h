@@ -5,4 +5,4 @@
 #define DEBUG_WORKER 0
 
 
-void executeWorker(int worldWidth, int worldPartHeight);
+void executeWorker(int worldWidth);

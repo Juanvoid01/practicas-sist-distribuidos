@@ -1,22 +1,25 @@
 #include "worker.h"
 #include "types.h"
 
-void updateCell(tCoordinate *cellCoord,
-                unsigned short *worldPart,
-                unsigned short *topWorldPart,
-                unsigned short *bottomWorldPart,
-                int worldWidth,
-                int worldPartHeight);
+static void updateCell(tCoordinate *cellCoord,
+                       unsigned short *worldPart,
+                       unsigned short *topWorldPart,
+                       unsigned short *bottomWorldPart,
+                       int worldWidth,
+                       int worldPartHeight);
 
-void updateWorld(unsigned short *worldPart,
-                 unsigned short *topWorldPart,
-                 unsigned short *bottomWorldPart,
-                 int worldWidth,
-                 int worldPartHeight);
+static void updateWorld(unsigned short *worldPart,
+                        unsigned short *topWorldPart,
+                        unsigned short *bottomWorldPart,
+                        int worldWidth,
+                        int worldPartHeight);
 
-void executeWorker(int worldWidth, int worldPartHeight)
+void executeWorker(int worldWidth)
 {
     MPI_Status status;
+    unsigned int worldPartHeight;
+    MPI_Recv(&worldPartHeight, 1, MPI_UNSIGNED, MASTER, 7, MPI_COMM_WORLD, &status);
+
     int worldPartSize = worldWidth * worldPartHeight;
     unsigned short *worldPart = (unsigned short *)malloc(worldPartSize * sizeof(unsigned short));
     unsigned short *topWorldPart = (unsigned short *)malloc(worldWidth * sizeof(unsigned short));
@@ -33,14 +36,18 @@ void executeWorker(int worldWidth, int worldPartHeight)
 
     // Envía el resultado de la porción procesada de vuelta al master
     MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 0, MPI_COMM_WORLD);
+
+    free(worldPart);
+    free(topWorldPart);
+    free(bottomWorldPart);
 }
 
-void updateCell(tCoordinate *cellCoord,
-                unsigned short *worldPart,
-                unsigned short *topWorldPart,
-                unsigned short *bottomWorldPart,
-                int worldWidth,
-                int worldPartHeight)
+static void updateCell(tCoordinate *cellCoord,
+                       unsigned short *worldPart,
+                       unsigned short *topWorldPart,
+                       unsigned short *bottomWorldPart,
+                       int worldWidth,
+                       int worldPartHeight)
 {
     tCoordinate cellCoordUp;
     tCoordinate cellCoordDown;
@@ -107,7 +114,7 @@ void updateCell(tCoordinate *cellCoord,
     }
 
     // Lonely cell?
-    if (cell == CELL_EMPTY && (neighbours == 0))
+    if (neighbours == 0)
     {
         calculateLonelyCell();
     }
@@ -124,13 +131,19 @@ void updateCell(tCoordinate *cellCoord,
     { // Cell is dead
         setCellAt(cellCoord, worldPart, worldWidth, CELL_EMPTY);
     }
+
+    // cataclysm
+    if (cell == CELL_CATACLYSM)
+    {
+        setCellAt(cellCoord, worldPart, worldWidth, CELL_EMPTY);
+    }
 }
 
-void updateWorld(unsigned short *worldPart,
-                 unsigned short *topWorldPart,
-                 unsigned short *bottomWorldPart,
-                 int worldWidth,
-                 int worldPartHeight)
+static void updateWorld(unsigned short *worldPart,
+                        unsigned short *topWorldPart,
+                        unsigned short *bottomWorldPart,
+                        int worldWidth,
+                        int worldPartHeight)
 {
 
     tCoordinate cell;
