@@ -4,6 +4,7 @@ client
 server
 lifeGame
 game_results.txt
+imageOutput
 
 *.xml
 *.nsmap
