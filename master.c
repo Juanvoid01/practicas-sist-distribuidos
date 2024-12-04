@@ -23,64 +23,74 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
     initRandomWorld(world, worldWidth, worldHeight);
 
-    unsigned int worldPartHeight = worldHeight / numWorkers;
     unsigned int worldPartSize = worldPartHeight * worldWidth;
 
     unsigned short *firstRow = world;
     unsigned short *lastRow = world + worldSize - worldWidth;
 
-    for (int j = 1; j < numProcess; j++)
-    {
-        printf("Sending worldPartHeight %d\n", j );
-        MPI_Send(&worldPartHeight, 1, MPI_UNSIGNED, j , 7, MPI_COMM_WORLD);
-    }
-    printf("Finish sending worldPartHeight \n");
-
     for (int iteration = 0; iteration < totalIterations; iteration++)
     {
-        printf("Starting iteration %d\n", iteration);
 
         memcpy(currentWorld, world, worldSize * sizeof(unsigned short));
 
-        printf("Finish memcpy\n");
-
         // Distribución estática o dinámica
-        unsigned short *worldPart[numWorkers];
         if (distModeStatic)
         {
-            for (int j = 1; j < numProcess; j++)
+
+            int worldPartHeight = worldHeight / numWorkers;
+            unsigned int lastWorkerWorldPartHeight = worldPartHeight + worldHeight % numWorkers;
+            int lastWorkerWorlPartSize = lastWorkerWorldPartHeight * worldPartWidth;
+
+            for (int j = 1; j <= numWorkers; j++)
             {
-                int signal = j >= numProcess - 1 ? END_PROCESSING : j;
 
-                printf("Sending signal %d\n", j);
+                if (j < numWorkers)
+                {
+                    MPI_Send(&worldPartHeight, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
+                }
+                else
+                {
+                    MPI_Send(&lastWorkerWorldPartHeight, 1, MPI_UNSIGNED, j, 1, MPI_COMM_WORLD);
+                }
+            }
 
-                MPI_Send(&signal, 1, MPI_INTEGER, j , 9, MPI_COMM_WORLD);
+            for (int j = 1; j <= numWorkers; j++)
+            {
 
-                printf("Finish sending signal\n");
+                unsigned short *worldPart = world + worldPartSize * (j - 1);
+                unsigned short *topWorldPart = j > 1 ? worldPart - worldWidth : lastRow;
+                unsigned short *bottomWorldPart = j < numWorkers ? worldPart + worldWidth : firstRow;
 
-                worldPart[j-1] = world + worldPartSize * (j-1);
-                unsigned short *topWorldPart = j > 1 ? worldPart[0] - worldWidth : lastRow;
-                unsigned short *bottomWorldPart = j >= numProcess - 1 ? worldPart[numWorkers - 1] + worldWidth : firstRow;
+                if (j < numWorkers)
+                {
+                    MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
+                }
+                else
+                {
+                    MPI_Send(worldPart, lastWorkerWorlPartSize, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
+                }
+                MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 3, MPI_COMM_WORLD);
+                MPI_Send(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 4, MPI_COMM_WORLD);
+            }
 
-                printf("Sending worldPart %d\n", j);
+            // Recibe los resultados de cada worker
+            for (int j = 1; j <= numWorkers; j++)
+            {
+                unsigned short *worldPart = world + worldPartSize * (j - 1);
 
-                MPI_Send(worldPart[j], worldPartSize, MPI_UNSIGNED_SHORT, j, 0, MPI_COMM_WORLD);
-                MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 1, MPI_COMM_WORLD);
-                MPI_Send(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
-
-                printf("Finish sending worldPart\n");
+                if (j < numWorkers)
+                {
+                    MPI_Recv(worldPart[j - 1], worldPartSize, MPI_UNSIGNED_SHORT, j, 5, MPI_COMM_WORLD, &status);
+                }
+                else
+                {
+                    MPI_Recv(worldPart, lastWorkerWorlPartSize, MPI_UNSIGNED_SHORT, j, 5, MPI_COMM_WORLD, &status);
+                }
             }
         }
         else
         {
             // Distribución dinámica: asigna porciones de tamaño `grainSize`
-        }
-
-        // Recibe los resultados de cada worker
-        for (int j = 1; j < numProcess; j++)
-        {
-            // Recibe de cada worker
-            MPI_Recv(worldPart[j-1], worldPartSize, MPI_UNSIGNED_SHORT, j, 0, MPI_COMM_WORLD, &status);
         }
 
         // Aplica el cataclismo
@@ -104,6 +114,13 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
         // Modo paso a paso
         if (autoMode == 0)
             getchar();
+    }
+
+    int signal_end = END_PROCESSING;
+
+    for (int j = 1; j <= numWorkers; j++)
+    {
+        MPI_Send(&signal_end, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
     }
 
     free(world);

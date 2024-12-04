@@ -18,42 +18,57 @@ void executeWorker(int worldWidth)
 {
     int signal;
     MPI_Status status;
-    unsigned int worldPartHeight;
+    int worldPartHeight = 0;
+    int worldPartSize = 0;
 
-    printf("Worker receiving worldPartHeight\n");
-
-    MPI_Recv(&worldPartHeight, 1, MPI_UNSIGNED, MASTER, 7, MPI_COMM_WORLD, &status);
-
-    printf("Worker finished receiving worldPartHeight\n");
-
-    int worldPartSize = worldWidth * worldPartHeight;
-    unsigned short *worldPart = (unsigned short *)malloc(worldPartSize * sizeof(unsigned short));
+    unsigned short *worldPart = NULL;
     unsigned short *topWorldPart = (unsigned short *)malloc(worldWidth * sizeof(unsigned short));
     unsigned short *bottomWorldPart = (unsigned short *)malloc(worldWidth * sizeof(unsigned short));
 
-    do
+    while (1)
     {
-        printf("Worker receiving signal\n");
-
         // recibe la señal
-        MPI_Recv(&signal, 1, MPI_INTEGER, MASTER, 9, MPI_COMM_WORLD, &status);
+        MPI_Recv(&signal, 1, MPI_INT, MASTER, 0, MPI_COMM_WORLD, &status);
 
-        printf("Worker finish receiving signal\n");
+
+        int newWorldPartHeight = 0;
+        // recibe el numero de filas a procesar
+        MPI_Recv(&newWorldPartHeight, 1, MPI_INT, MASTER, 1, MPI_COMM_WORLD, &status);
+
+        if (newWorldPartHeight == END_PROCESSING)
+            break;
+
+        // resize buffer only if necessary
+        if (newWorldPartHeight != worldPartHeight)
+        {
+            if (worldPart != NULL)
+            {
+                free(worldPart);
+            }
+
+            worldPartHeight = newWorldPartHeight;
+            worldPartSize = worldWidth * worldPartHeight;
+
+            worldPart = (unsigned short *)malloc(worldPartSize * sizeof(unsigned short));
+        }
 
         // Recibe la porción de mundo a procesar
-        MPI_Recv(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 0, MPI_COMM_WORLD, &status);
+        MPI_Recv(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 2, MPI_COMM_WORLD, &status);
         // Recibe la fila superior de la parte del mundo
-        MPI_Recv(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, MASTER, 1, MPI_COMM_WORLD, &status);
+        MPI_Recv(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, MASTER, 3, MPI_COMM_WORLD, &status);
         // Recibe la fila inferior de la parte del mundo
-        MPI_Recv(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, MASTER, 2, MPI_COMM_WORLD, &status);
+        MPI_Recv(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, MASTER, 4, MPI_COMM_WORLD, &status);
 
         updateWorld(worldPart, topWorldPart, bottomWorldPart, worldWidth, worldPartHeight);
 
         // Envía el resultado de la porción procesada de vuelta al master
-        MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 0, MPI_COMM_WORLD);
-    } while (signal != END_PROCESSING);
+        MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 5, MPI_COMM_WORLD);
+    }
 
-    free(worldPart);
+    if (worldPart != NULL)
+    {
+        free(worldPart);
+    }
     free(topWorldPart);
     free(bottomWorldPart);
 }
