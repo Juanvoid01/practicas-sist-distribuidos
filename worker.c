@@ -16,7 +16,6 @@ static void updateWorld(unsigned short *worldPart,
 
 void executeWorker(int worldWidth)
 {
-    int signal;
     MPI_Status status;
     int worldPartHeight = 0;
     int worldPartSize = 0;
@@ -27,10 +26,6 @@ void executeWorker(int worldWidth)
 
     while (1)
     {
-        // recibe la señal
-        MPI_Recv(&signal, 1, MPI_INT, MASTER, 0, MPI_COMM_WORLD, &status);
-
-
         int newWorldPartHeight = 0;
         // recibe el numero de filas a procesar
         MPI_Recv(&newWorldPartHeight, 1, MPI_INT, MASTER, 1, MPI_COMM_WORLD, &status);
@@ -62,9 +57,11 @@ void executeWorker(int worldWidth)
         updateWorld(worldPart, topWorldPart, bottomWorldPart, worldWidth, worldPartHeight);
 
         // Envía el resultado de la porción procesada de vuelta al master
-        MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 5, MPI_COMM_WORLD);
+        MPI_Send(&worldPartSize, 1, MPI_INT, MASTER, 5, MPI_COMM_WORLD);
+        MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 6, MPI_COMM_WORLD);
     }
 
+    
     if (worldPart != NULL)
     {
         free(worldPart);

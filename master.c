@@ -7,6 +7,8 @@ static void cataclysm(unsigned short *world, const int iteration, const int worl
 void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, int worldHeight, int numProcess,
                    int totalIterations, int autoMode, int distModeStatic, int grainSize, char *outputFile)
 {
+    unsigned short **processWorldPart = (unsigned short **)malloc(numProcess * sizeof(unsigned short *));
+
     MPI_Status status;
 
     const int worldSize = worldWidth * worldHeight;
@@ -23,8 +25,6 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
     initRandomWorld(world, worldWidth, worldHeight);
 
-    unsigned int worldPartSize = worldPartHeight * worldWidth;
-
     unsigned short *firstRow = world;
     unsigned short *lastRow = world + worldSize - worldWidth;
 
@@ -38,37 +38,26 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
         {
 
             int worldPartHeight = worldHeight / numWorkers;
-            unsigned int lastWorkerWorldPartHeight = worldPartHeight + worldHeight % numWorkers;
-            int lastWorkerWorlPartSize = lastWorkerWorldPartHeight * worldPartWidth;
+            int worldPartSize = worldPartHeight * worldWidth;
+            int lastWorkerWorldPartHeight = worldPartHeight + worldHeight % numWorkers;
+            int lastWorkerWorlPartSize = lastWorkerWorldPartHeight * worldWidth;
 
             for (int j = 1; j <= numWorkers; j++)
             {
-
-                if (j < numWorkers)
-                {
-                    MPI_Send(&worldPartHeight, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
-                }
-                else
-                {
-                    MPI_Send(&lastWorkerWorldPartHeight, 1, MPI_UNSIGNED, j, 1, MPI_COMM_WORLD);
-                }
+                int heightPart = j < numWorkers ? worldPartHeight : lastWorkerWorldPartHeight;
+                MPI_Send(&heightPart, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
             }
 
             for (int j = 1; j <= numWorkers; j++)
             {
 
-                unsigned short *worldPart = world + worldPartSize * (j - 1);
-                unsigned short *topWorldPart = j > 1 ? worldPart - worldWidth : lastRow;
-                unsigned short *bottomWorldPart = j < numWorkers ? worldPart + worldWidth : firstRow;
+                processWorldPart[j] = world + worldPartSize * (j - 1);
+                unsigned short *topWorldPart = j > 1 ? processWorldPart[j] - worldWidth : lastRow;
+                unsigned short *bottomWorldPart = j < numWorkers ? processWorldPart[j] + worldWidth : firstRow;
 
-                if (j < numWorkers)
-                {
-                    MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
-                }
-                else
-                {
-                    MPI_Send(worldPart, lastWorkerWorlPartSize, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
-                }
+                int sizePart = j < numWorkers ? worldPartSize : lastWorkerWorlPartSize;
+
+                MPI_Send(processWorldPart[j], sizePart, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
                 MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 3, MPI_COMM_WORLD);
                 MPI_Send(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 4, MPI_COMM_WORLD);
             }
@@ -76,21 +65,76 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             // Recibe los resultados de cada worker
             for (int j = 1; j <= numWorkers; j++)
             {
-                unsigned short *worldPart = world + worldPartSize * (j - 1);
-
-                if (j < numWorkers)
-                {
-                    MPI_Recv(worldPart[j - 1], worldPartSize, MPI_UNSIGNED_SHORT, j, 5, MPI_COMM_WORLD, &status);
-                }
-                else
-                {
-                    MPI_Recv(worldPart, lastWorkerWorlPartSize, MPI_UNSIGNED_SHORT, j, 5, MPI_COMM_WORLD, &status);
-                }
+                int worldPartSizeReceived = 0;
+                MPI_Recv(&worldPartSizeReceived, 1, MPI_INT, j, 5, MPI_COMM_WORLD, &status);
+                MPI_Recv(processWorldPart[j], worldPartSizeReceived, MPI_UNSIGNED_SHORT, j, 6, MPI_COMM_WORLD, &status);
             }
         }
         else
         {
             // Distribución dinámica: asigna porciones de tamaño `grainSize`
+            int contRows = 0;
+            int nextWorker = 1;
+            int toReceive = 0;
+
+            while (contRows < worldHeight)
+            {
+                int worldPartSize = grainSize * worldWidth;
+
+                unsigned short *worldPart = world + contRows * worldWidth;
+
+                int rowsLeft = worldHeight - contRows;
+                if (grainSize <= rowsLeft)
+                {
+                    MPI_Send(&grainSize, 1, MPI_INT, nextWorker, 1, MPI_COMM_WORLD);
+
+                    unsigned short *topWorldPart = contRows > 0 ? worldPart - worldWidth : lastRow;
+                    unsigned short *bottomWorldPart = grainSize < rowsLeft ? worldPart + worldWidth : firstRow;
+
+                    MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, nextWorker, 2, MPI_COMM_WORLD);
+                    MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, nextWorker, 3, MPI_COMM_WORLD);
+                    MPI_Send(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, nextWorker, 4, MPI_COMM_WORLD);
+
+                    processWorldPart[nextWorker] = worldPart;
+                }
+                else
+                {
+                    MPI_Send(&rowsLeft, 1, MPI_INT, nextWorker, 1, MPI_COMM_WORLD);
+
+                    unsigned short *topWorldPart = contRows > 0 ? worldPart - worldWidth : lastRow;
+                    unsigned short *bottomWorldPart = firstRow;
+
+                    MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, nextWorker, 2, MPI_COMM_WORLD);
+                    MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, nextWorker, 3, MPI_COMM_WORLD);
+                    MPI_Send(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, nextWorker, 4, MPI_COMM_WORLD);
+
+                    break;
+                }
+
+                contRows += grainSize;
+                toReceive++;
+
+                int foundNext = 0;
+
+                nextWorker = nextWorker == numWorkers ? 1 : nextWorker++;
+
+                if (toReceive >= numWorkers)
+                {
+                    int worldPartSizeReceived = 0;
+                    MPI_Recv(&worldPartSizeReceived, 1, MPI_INT, MPI_ANY_SOURCE, 5, MPI_COMM_WORLD, &status);
+                    MPI_Recv(processWorldPart[status.MPI_SOURCE], worldPartSizeReceived, MPI_UNSIGNED_SHORT, status.MPI_SOURCE, 6, MPI_COMM_WORLD, &status);
+                    toReceive--;
+                }
+            }
+
+            while (toReceive > 0)
+            {
+                int worldPartSizeReceived = 0;
+
+                MPI_Recv(&worldPartSizeReceived, 1, MPI_INT, MPI_ANY_SOURCE, 5, MPI_COMM_WORLD, &status);
+                MPI_Recv(processWorldPart[status.MPI_SOURCE], worldPartSizeReceived, MPI_UNSIGNED_SHORT, status.MPI_SOURCE, 6, MPI_COMM_WORLD, &status);
+                toReceive--;
+            }
         }
 
         // Aplica el cataclismo
@@ -123,6 +167,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
         MPI_Send(&signal_end, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
     }
 
+    free(processWorldPart);
     free(world);
     free(currentWorld);
 }
