@@ -16,9 +16,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
     const int numWorkers = numProcess - 1;
 
     unsigned short *world = (unsigned short *)malloc(worldSize * sizeof(unsigned short));
-    unsigned short *currentWorld = (unsigned short *)malloc(worldSize * sizeof(unsigned short));
+    unsigned short *newWorld = (unsigned short *)malloc(worldSize * sizeof(unsigned short));
 
-    if (!world || !currentWorld)
+    if (!world || !newWorld)
     {
         fprintf(stderr, "Memory allocation failed.\n");
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
@@ -35,8 +35,6 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
         for (int iteration = 0; iteration < totalIterations; iteration++)
         {
-
-            memcpy(currentWorld, world, worldSize * sizeof(unsigned short));
             int worldPartHeight = worldHeight / numWorkers;
             int worldPartSize = worldPartHeight * worldWidth;
             int lastWorkerWorldPartHeight = worldPartHeight + worldHeight % numWorkers;
@@ -50,16 +48,17 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
             for (int j = 1; j <= numWorkers; j++)
             {
-
-                processWorldPart[j] = world + worldPartSize * (j - 1);
-                unsigned short *topWorldPart = j > 1 ? processWorldPart[j] - worldWidth : lastRow;
-                unsigned short *bottomWorldPart = j < numWorkers ? processWorldPart[j] + worldWidth : firstRow;
+                unsigned short *worldPart = world + worldPartSize * (j - 1);
+                unsigned short *topWorldPart = j > 1 ? worldPart - worldWidth : lastRow;
+                unsigned short *bottomWorldPart = j < numWorkers ? worldPart + worldWidth : firstRow;
 
                 int sizePart = j < numWorkers ? worldPartSize : lastWorkerWorlPartSize;
 
-                MPI_Send(processWorldPart[j], sizePart, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
+                MPI_Send(worldPart, sizePart, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
                 MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 3, MPI_COMM_WORLD);
                 MPI_Send(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 4, MPI_COMM_WORLD);
+
+                processWorldPart[j] = newWorld + worldPartSize * (j - 1);
             }
 
             // Recibe los resultados de cada worker
@@ -76,8 +75,8 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
             SDL_RenderClear(renderer);
 
-            drawWorld(currentWorld,
-                      world,
+            drawWorld(world,
+                      newWorld,
                       renderer,
                       0,
                       worldHeight,
@@ -89,6 +88,10 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
             saveImage(renderer, outputFile, worldWidth * CELL_SIZE, worldHeight * CELL_SIZE);
 
+            unsigned short *tempWorld = world;
+            world = newWorld;
+            newWorld = tempWorld;
+            
             // Modo paso a paso
             if (autoMode == 0)
             {
@@ -108,11 +111,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
         for (int iteration = 0; iteration < totalIterations; iteration++)
         {
-            memcpy(currentWorld, world, worldSize * sizeof(unsigned short));
-
             // Distribución dinámica: asigna porciones de tamaño `grainSize`
             int currentRow = 0;
-            unsigned short *auxPtrWorld = world;
+            unsigned short *auxPtrWorld = newWorld;
 
             for (int j = 1; j <= numWorkers; j++)
             {
@@ -187,8 +188,8 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
             SDL_RenderClear(renderer);
 
-            drawWorld(currentWorld,
-                      world,
+            drawWorld(world,
+                      newWorld,
                       renderer,
                       0,
                       worldHeight,
@@ -200,17 +201,21 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
             saveImage(renderer, outputFile, worldWidth * CELL_SIZE, worldHeight * CELL_SIZE);
 
+            unsigned short *tempWorld = world;
+            world = newWorld;
+            newWorld = tempWorld;
+
             // Modo paso a paso
             if (autoMode == 0)
             {
-                sleep(1);
+                // sleep(1);
             }
         }
     }
 
     free(processWorldPart);
     free(world);
-    free(currentWorld);
+    free(newWorld);
 }
 
 static void cataclysm(unsigned short *world, const int iteration, const int worldWidth, const int worldHeight)
