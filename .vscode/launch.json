@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "/home/juan/openmpi-2.0.1/bin/mpiexec",
-            "args": ["-n", "16", "./lifeGame", "100", "100", "1000", "auto", "imageOutput.bmp", "static"],
+            "args": ["-n", "16", "./lifeGame", "100", "100", "1000", "step", "imageOutput.bmp", "static"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

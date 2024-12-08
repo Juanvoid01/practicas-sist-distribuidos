@@ -61,7 +61,6 @@ void executeWorker(int worldWidth)
         MPI_Send(worldPart, worldPartSize, MPI_UNSIGNED_SHORT, MASTER, 6, MPI_COMM_WORLD);
     }
 
-    
     if (worldPart != NULL)
     {
         free(worldPart);
@@ -81,6 +80,10 @@ static void updateCell(tCoordinate *cellCoord,
     tCoordinate cellCoordDown;
     tCoordinate cellCoordRight;
     tCoordinate cellCoordLeft;
+    tCoordinate cellCoordUpLeft;
+    tCoordinate cellCoordDownLeft;
+    tCoordinate cellCoordUpRight;
+    tCoordinate cellCoordDownRight;
 
     getCellLeft(cellCoord, worldWidth, &cellCoordLeft);
     getCellRight(cellCoord, worldWidth, &cellCoordRight);
@@ -88,47 +91,19 @@ static void updateCell(tCoordinate *cellCoord,
     if (cellCoord->row > 0)
     {
         getCellUp(cellCoord, &cellCoordUp);
+        getCellUp(&cellCoordLeft, &cellCoordUpLeft);
+        getCellUp(&cellCoordRight, &cellCoordUpRight);
     }
 
     if (cellCoord->row < worldPartHeight - 1)
     {
         getCellDown(cellCoord, &cellCoordDown);
+        getCellDown(&cellCoordLeft, &cellCoordDownLeft);
+        getCellDown(&cellCoordRight, &cellCoordDownRight);
     }
 
     unsigned short cell = getCellAtWorld(cellCoord, worldPart, worldWidth);
     unsigned int neighbours = 0;
-
-    // Check up
-    if (cellCoord->row > 0)
-    {
-        if (getCellAtWorld(&cellCoordUp, worldPart, worldWidth) == CELL_LIVE)
-        {
-            neighbours++;
-        }
-    }
-    else
-    {
-        if (topWorldPart[cellCoord->col] == CELL_LIVE)
-        {
-            neighbours++;
-        }
-    }
-
-    // Check down
-    if (cellCoord->row < worldPartHeight - 1)
-    {
-        if (getCellAtWorld(&cellCoordDown, worldPart, worldWidth) == CELL_LIVE)
-        {
-            neighbours++;
-        }
-    }
-    else
-    {
-        if (bottomWorldPart[cellCoord->col] == CELL_LIVE)
-        {
-            neighbours++;
-        }
-    }
 
     // Check left
     if (getCellAtWorld(&cellCoordLeft, worldPart, worldWidth) == CELL_LIVE)
@@ -139,6 +114,76 @@ static void updateCell(tCoordinate *cellCoord,
     if (getCellAtWorld(&cellCoordRight, worldPart, worldWidth) == CELL_LIVE)
     {
         neighbours++;
+    }
+
+    // Check up, upLeft and upRight
+    if (cellCoord->row > 0)
+    {
+        if (getCellAtWorld(&cellCoordUp, worldPart, worldWidth) == CELL_LIVE)
+        {
+            neighbours++;
+        }
+        if (getCellAtWorld(&cellCoordUpLeft, worldPart, worldWidth) == CELL_LIVE)
+        {
+            neighbours++;
+        }
+        if (getCellAtWorld(&cellCoordUpRight, worldPart, worldWidth) == CELL_LIVE)
+        {
+            neighbours++;
+        }
+    }
+    else
+    {
+        int rightCol = cellCoord->col < worldWidth - 1 ? cellCoord->col + 1 : 0;
+        int leftCol = cellCoord->col > 0 ? cellCoord->col - 1 : worldWidth - 1;
+
+        if (topWorldPart[cellCoord->col] == CELL_LIVE)
+        {
+            neighbours++;
+        }
+        if (topWorldPart[rightCol] == CELL_LIVE)
+        {
+            neighbours++;
+        }
+        if (topWorldPart[leftCol] == CELL_LIVE)
+        {
+            neighbours++;
+        }
+    }
+
+    // Check down, downLeft and downRight
+    if (cellCoord->row < worldPartHeight - 1)
+    {
+        if (getCellAtWorld(&cellCoordDown, worldPart, worldWidth) == CELL_LIVE)
+        {
+            neighbours++;
+        }
+        if (getCellAtWorld(&cellCoordDownLeft, worldPart, worldWidth) == CELL_LIVE)
+        {
+            neighbours++;
+        }
+        if (getCellAtWorld(&cellCoordDownRight, worldPart, worldWidth) == CELL_LIVE)
+        {
+            neighbours++;
+        }
+    }
+    else
+    {
+        int rightCol = cellCoord->col < worldWidth - 1 ? cellCoord->col + 1 : 0;
+        int leftCol = cellCoord->col > 0 ? cellCoord->col - 1 : worldWidth - 1;
+
+        if (bottomWorldPart[cellCoord->col] == CELL_LIVE)
+        {
+            neighbours++;
+        }
+        if (bottomWorldPart[rightCol] == CELL_LIVE)
+        {
+            neighbours++;
+        }
+        if (bottomWorldPart[leftCol] == CELL_LIVE)
+        {
+            neighbours++;
+        }
     }
 
     // Lonely cell?
@@ -163,7 +208,7 @@ static void updateCell(tCoordinate *cellCoord,
     // cataclysm
     if (cell == CELL_CATACLYSM)
     {
-        setCellAt(cellCoord, worldPart, worldWidth, CELL_EMPTY);
+        setCellAt(cellCoord, worldPart, worldWidth, CELL_DEAD);
     }
 }
 

@@ -11,6 +11,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
     unsigned short **processWorldPart = (unsigned short **)malloc(numProcess * sizeof(unsigned short *));
 
     MPI_Status status;
+    SDL_Event event;
+    int isquit = 0;
+    char ch;
 
     const int worldSize = worldWidth * worldHeight;
     const int numWorkers = numProcess - 1;
@@ -33,7 +36,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
     {
         // static ---------------------------------------------------------------------------------------------
 
-        for (int iteration = 0; iteration < totalIterations; iteration++)
+        for (int iteration = 0; iteration < totalIterations && !isquit; iteration++)
         {
             int worldPartHeight = worldHeight / numWorkers;
             int worldPartSize = worldPartHeight * worldWidth;
@@ -83,19 +86,23 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                       worldWidth,
                       worldHeight);
 
-            SDL_RenderPresent(renderer);
-            SDL_UpdateWindowSurface(window);
-
-            saveImage(renderer, outputFile, worldWidth * CELL_SIZE, worldHeight * CELL_SIZE);
-
             unsigned short *tempWorld = world;
             world = newWorld;
             newWorld = tempWorld;
-            
-            // Modo paso a paso
-            if (autoMode == 0)
+
+            // Update the surface
+            SDL_RenderPresent(renderer);
+            SDL_UpdateWindowSurface(window);
+
+            // Read event
+            if (SDL_PollEvent(&event))
+                if (event.type == SDL_QUIT)
+                    isquit = 1;
+
+            if (!autoMode)
             {
-                sleep(5);
+                printf("Press Enter to continue...\n");
+                ch = getchar();
             }
         }
         int signal_end = END_PROCESSING;
@@ -196,26 +203,44 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                       worldWidth,
                       worldHeight);
 
-            SDL_RenderPresent(renderer);
-            SDL_UpdateWindowSurface(window);
-
-            saveImage(renderer, outputFile, worldWidth * CELL_SIZE, worldHeight * CELL_SIZE);
-
             unsigned short *tempWorld = world;
             world = newWorld;
             newWorld = tempWorld;
 
-            // Modo paso a paso
-            if (autoMode == 0)
+            // Update the surface
+            SDL_RenderPresent(renderer);
+            SDL_UpdateWindowSurface(window);
+
+            // Read event
+            if (SDL_PollEvent(&event))
+                if (event.type == SDL_QUIT)
+                    isquit = 1;
+
+            if (!autoMode)
             {
-                // sleep(1);
+                printf("Press Enter to continue...\n");
+                ch = getchar();
             }
         }
     }
 
+    // Save file?
+    if (outputFile != NULL)
+        saveImage(renderer, outputFile, worldWidth * CELL_SIZE, worldHeight * CELL_SIZE);
+
+    // Destroy window
+    SDL_DestroyWindow(window);
+
+    // Game over
+    printf("Game Over!!! Press Enter to continue...");
+    ch = getchar();
+
     free(processWorldPart);
     free(world);
     free(newWorld);
+
+    // Exiting...
+    SDL_Quit();
 }
 
 static void cataclysm(unsigned short *world, const int iteration, const int worldWidth, const int worldHeight)
