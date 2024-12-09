@@ -16,7 +16,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
     char ch;
 
     const int worldSize = worldWidth * worldHeight;
-    const int numWorkers = numProcess - 1;
+    int numWorkers = numProcess - 1;
 
     unsigned short *world = (unsigned short *)malloc(worldSize * sizeof(unsigned short));
     unsigned short *newWorld = (unsigned short *)malloc(worldSize * sizeof(unsigned short));
@@ -36,12 +36,20 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
     {
         // static ---------------------------------------------------------------------------------------------
 
+        if (numWorkers > worldHeight)
+        {
+            numWorkers = worldHeight;
+        }
+        
+        int worldPartHeight = worldHeight / numWorkers;
+        int worldPartSize = worldPartHeight * worldWidth;
+        int lastWorkerWorldPartHeight = worldPartHeight + worldHeight % numWorkers;
+        int lastWorkerWorldPartSize = lastWorkerWorldPartHeight * worldWidth;
+
         for (int iteration = 0; iteration < totalIterations && !isquit; iteration++)
         {
-            int worldPartHeight = worldHeight / numWorkers;
-            int worldPartSize = worldPartHeight * worldWidth;
-            int lastWorkerWorldPartHeight = worldPartHeight + worldHeight % numWorkers;
-            int lastWorkerWorlPartSize = lastWorkerWorldPartHeight * worldWidth;
+            // Aplica el cataclismo
+            cataclysm(world, iteration, worldWidth, worldHeight);
 
             for (int j = 1; j <= numWorkers; j++)
             {
@@ -55,7 +63,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                 unsigned short *topWorldPart = j > 1 ? worldPart - worldWidth : lastRow;
                 unsigned short *bottomWorldPart = j < numWorkers ? worldPart + worldWidth : firstRow;
 
-                int sizePart = j < numWorkers ? worldPartSize : lastWorkerWorlPartSize;
+                int sizePart = j < numWorkers ? worldPartSize : lastWorkerWorldPartSize;
 
                 MPI_Send(worldPart, sizePart, MPI_UNSIGNED_SHORT, j, 2, MPI_COMM_WORLD);
                 MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 3, MPI_COMM_WORLD);
@@ -68,12 +76,10 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             for (int j = 1; j <= numWorkers; j++)
             {
                 int worldPartSizeReceived = 0;
-                MPI_Recv(&worldPartSizeReceived, 1, MPI_INT, j, 5, MPI_COMM_WORLD, &status);
-                MPI_Recv(processWorldPart[j], worldPartSizeReceived, MPI_UNSIGNED_SHORT, j, 6, MPI_COMM_WORLD, &status);
+                MPI_Recv(&worldPartSizeReceived, 1, MPI_INT, MPI_ANY_SOURCE, 5, MPI_COMM_WORLD, &status);
+                int workerId = status.MPI_SOURCE;
+                MPI_Recv(processWorldPart[workerId], worldPartSizeReceived, MPI_UNSIGNED_SHORT, workerId, 6, MPI_COMM_WORLD, &status);
             }
-
-            // Aplica el cataclismo
-            cataclysm(world, iteration, worldWidth, worldHeight);
 
             SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
             SDL_RenderClear(renderer);
@@ -89,6 +95,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             unsigned short *tempWorld = world;
             world = newWorld;
             newWorld = tempWorld;
+            clearWorld(newWorld, worldWidth, worldHeight);
 
             // Update the surface
             SDL_RenderPresent(renderer);
@@ -226,10 +233,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
     // Save file?
     if (outputFile != NULL)
+    {
         saveImage(renderer, outputFile, worldWidth * CELL_SIZE, worldHeight * CELL_SIZE);
-
-    // Destroy window
-    SDL_DestroyWindow(window);
+    }
 
     // Game over
     printf("Game Over!!! Press Enter to continue...");
@@ -239,6 +245,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
     free(world);
     free(newWorld);
 
+    // Destroy window
+    SDL_DestroyWindow(window);
+    
     // Exiting...
     SDL_Quit();
 }
