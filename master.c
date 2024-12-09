@@ -40,7 +40,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
         {
             numWorkers = worldHeight;
         }
-        
+
         int worldPartHeight = worldHeight / numWorkers;
         int worldPartSize = worldPartHeight * worldWidth;
         int lastWorkerWorldPartHeight = worldPartHeight + worldHeight % numWorkers;
@@ -48,9 +48,6 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
         for (int iteration = 0; iteration < totalIterations && !isquit; iteration++)
         {
-            // Aplica el cataclismo
-            cataclysm(world, iteration, worldWidth, worldHeight);
-
             for (int j = 1; j <= numWorkers; j++)
             {
                 int heightPart = j < numWorkers ? worldPartHeight : lastWorkerWorldPartHeight;
@@ -81,6 +78,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                 MPI_Recv(processWorldPart[workerId], worldPartSizeReceived, MPI_UNSIGNED_SHORT, workerId, 6, MPI_COMM_WORLD, &status);
             }
 
+            // Aplica el cataclismo
+            cataclysm(newWorld, iteration, worldWidth, worldHeight);
+
             SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
             SDL_RenderClear(renderer);
 
@@ -95,7 +95,6 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             unsigned short *tempWorld = world;
             world = newWorld;
             newWorld = tempWorld;
-            clearWorld(newWorld, worldWidth, worldHeight);
 
             // Update the surface
             SDL_RenderPresent(renderer);
@@ -129,14 +128,15 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             int currentRow = 0;
             unsigned short *auxPtrWorld = newWorld;
 
-            for (int j = 1; j <= numWorkers; j++)
+            for (int j = 1; j <= numWorkers && currentRow < worldHeight; j++)
             {
-
-                int worldPartSize = grainSize * worldWidth;
                 int rowsLeft = worldHeight - currentRow;
+                int rowsSent = rowsLeft >= grainSize ? grainSize : rowsLeft;
+
+                int worldPartSize = rowsSent * worldWidth;
 
                 // Send the number of rows to be processed
-                MPI_Send(&grainSize, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
+                MPI_Send(&rowsSent, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
 
                 // Send the rows data
                 unsigned short *topWorldPart = currentRow > 0 ? auxPtrWorld - worldWidth : lastRow;
@@ -146,58 +146,67 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                 MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 3, MPI_COMM_WORLD);
                 MPI_Send(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, j, 4, MPI_COMM_WORLD);
 
-                processWorldPart[j] = auxPtrWorld;
-
                 // Update pointer and index
-                currentRow += grainSize;
-                auxPtrWorld += (grainSize * worldPartSize);
-            }
 
-            printf("finished1\n");
+                processWorldPart[j] = auxPtrWorld;
+                currentRow += rowsSent;
+                auxPtrWorld += (rowsSent * worldPartSize);
+            }
 
             int processedRows = 0;
 
             while (processedRows < worldHeight)
             {
+                printf("pidiendo processedRows\n");
+
                 int worldPartSizeReceived = 0;
                 MPI_Recv(&worldPartSizeReceived, 1, MPI_INT, MPI_ANY_SOURCE, 5, MPI_COMM_WORLD, &status);
+                printf("recibido worldPartSizeReceived %d\n", worldPartSizeReceived);
+
                 int workerId = status.MPI_SOURCE;
 
-                MPI_Recv(processWorldPart[workerId], worldPartSizeReceived, MPI_UNSIGNED_SHORT, status.MPI_SOURCE, 6, MPI_COMM_WORLD, &status);
+                MPI_Recv(processWorldPart[workerId], worldPartSizeReceived, MPI_UNSIGNED_SHORT, workerId, 6, MPI_COMM_WORLD, &status);
+
+                printf("recibido processedRows %d\n", processedRows);
 
                 processedRows += worldPartSizeReceived / worldWidth;
 
                 // Send remaining rows...
                 if (currentRow < worldHeight)
                 {
-                    // Calculate number of rows to process, it can be grainSize or less if we are at the end of the processing
-                    int sentRows = (currentRow + grainSize) > worldHeight ? worldHeight - currentRow : grainSize;
-                    int worldPartSize = sentRows * worldWidth;
+                    int rowsLeft = worldHeight - currentRow;
+                    int rowsSent = rowsLeft >= grainSize ? grainSize : rowsLeft;
 
-                    MPI_Send(&sentRows, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
+                    int worldPartSize = rowsSent * worldWidth;
 
+                    // Send the number of rows to be processed
+                    MPI_Send(&rowsSent, 1, MPI_INT, workerId, 1, MPI_COMM_WORLD);
+
+                    // Send the rows data
                     unsigned short *topWorldPart = currentRow > 0 ? auxPtrWorld - worldWidth : lastRow;
-                    unsigned short *bottomWorldPart = sentRows < grainSize ? firstRow : auxPtrWorld + worldWidth;
+                    unsigned short *bottomWorldPart = grainSize < rowsLeft ? auxPtrWorld + worldWidth : firstRow;
 
                     MPI_Send(auxPtrWorld, worldPartSize, MPI_UNSIGNED_SHORT, workerId, 2, MPI_COMM_WORLD);
                     MPI_Send(topWorldPart, worldWidth, MPI_UNSIGNED_SHORT, workerId, 3, MPI_COMM_WORLD);
                     MPI_Send(bottomWorldPart, worldWidth, MPI_UNSIGNED_SHORT, workerId, 4, MPI_COMM_WORLD);
 
-                    processWorldPart[workerId] = auxPtrWorld;
-
                     // Update pointer and index
-                    currentRow += sentRows;
-                    auxPtrWorld += (sentRows * worldPartSize);
+                    processWorldPart[workerId] = auxPtrWorld;
+                    currentRow += rowsSent;
+                    auxPtrWorld += (rowsSent * worldPartSize);
                 }
                 else
                 {
-                    int signal_end = END_PROCESSING;
-                    MPI_Send(&signal_end, 1, MPI_INT, workerId, 1, MPI_COMM_WORLD);
+                    if (iteration == totalIterations - 1)
+                    {
+                        int signal_end = END_PROCESSING;
+                        MPI_Send(&signal_end, 1, MPI_INT, workerId, 1, MPI_COMM_WORLD);
+                    }
                 }
             }
 
             // Aplica el cataclismo
-            cataclysm(world, iteration, worldWidth, worldHeight);
+            cataclysm(newWorld, iteration, worldWidth, worldHeight);
 
             SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
             SDL_RenderClear(renderer);
@@ -247,7 +256,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
     // Destroy window
     SDL_DestroyWindow(window);
-    
+
     // Exiting...
     SDL_Quit();
 }
