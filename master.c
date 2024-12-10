@@ -26,6 +26,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
         fprintf(stderr, "Memory allocation failed.\n");
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
+    clearWorld(world, worldWidth, worldHeight);
 
     initRandomWorld(world, worldWidth, worldHeight);
 
@@ -48,6 +49,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
         for (int iteration = 0; iteration < totalIterations && !isquit; iteration++)
         {
+
             for (int j = 1; j <= numWorkers; j++)
             {
                 int heightPart = j < numWorkers ? worldPartHeight : lastWorkerWorldPartHeight;
@@ -150,12 +152,13 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
                 processWorldPart[j] = auxPtrWorld;
                 currentRow += rowsSent;
-                auxPtrWorld += (rowsSent * worldPartSize);
+                auxPtrWorld += worldPartSize;
             }
+            printf("terminada distribucion\n");
 
-            int processedRows = 0;
+            int processedSize = 0;
 
-            while (processedRows < worldHeight)
+            while (processedSize < worldSize)
             {
                 printf("pidiendo processedRows\n");
 
@@ -167,9 +170,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 
                 MPI_Recv(processWorldPart[workerId], worldPartSizeReceived, MPI_UNSIGNED_SHORT, workerId, 6, MPI_COMM_WORLD, &status);
 
-                printf("recibido processedRows %d\n", processedRows);
+                printf("recibido processedSize %d\n", processedSize);
 
-                processedRows += worldPartSizeReceived / worldWidth;
+                processedSize += worldPartSizeReceived;
 
                 // Send remaining rows...
                 if (currentRow < worldHeight)
@@ -193,17 +196,19 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                     // Update pointer and index
                     processWorldPart[workerId] = auxPtrWorld;
                     currentRow += rowsSent;
-                    auxPtrWorld += (rowsSent * worldPartSize);
+                    auxPtrWorld += worldPartSize;
                 }
                 else
                 {
-                    if (iteration == totalIterations - 1)
+                    /*if (iteration == totalIterations - 1)
                     {
                         int signal_end = END_PROCESSING;
                         MPI_Send(&signal_end, 1, MPI_INT, workerId, 1, MPI_COMM_WORLD);
-                    }
+                    }*/
                 }
             }
+
+            printf("terminado procesamiento\n");
 
             // Aplica el cataclismo
             cataclysm(newWorld, iteration, worldWidth, worldHeight);
@@ -237,6 +242,12 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                 printf("Press Enter to continue...\n");
                 ch = getchar();
             }
+        }
+        int signal_end = END_PROCESSING;
+
+        for (int j = 1; j <= numWorkers; j++)
+        {
+            MPI_Send(&signal_end, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
         }
     }
 
