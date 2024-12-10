@@ -10,6 +10,11 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
 {
     unsigned short **processWorldPart = (unsigned short **)malloc(numProcess * sizeof(unsigned short *));
 
+    for (int j = 0; j < numProcess; j++)
+    {
+        processWorldPart[j] = NULL;
+    }
+
     MPI_Status status;
     SDL_Event event;
     int isquit = 0;
@@ -27,6 +32,7 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
     clearWorld(world, worldWidth, worldHeight);
+    clearWorld(newWorld, worldWidth, worldHeight);
 
     initRandomWorld(world, worldWidth, worldHeight);
 
@@ -103,9 +109,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             SDL_UpdateWindowSurface(window);
 
             // Read event
-            if (SDL_PollEvent(&event))
+            /*if (SDL_PollEvent(&event))
                 if (event.type == SDL_QUIT)
-                    isquit = 1;
+                    isquit = 1;*/
 
             if (!autoMode)
             {
@@ -154,23 +160,23 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                 currentRow += rowsSent;
                 auxPtrWorld += worldPartSize;
             }
-            printf("terminada distribucion\n");
+            //printf("terminada distribucion\n");
 
             int processedSize = 0;
 
             while (processedSize < worldSize)
             {
-                printf("pidiendo processedRows\n");
+                //printf("pidiendo processedRows\n");
 
                 int worldPartSizeReceived = 0;
                 MPI_Recv(&worldPartSizeReceived, 1, MPI_INT, MPI_ANY_SOURCE, 5, MPI_COMM_WORLD, &status);
-                printf("recibido worldPartSizeReceived %d\n", worldPartSizeReceived);
+                //printf("recibido worldPartSizeReceived %d\n", worldPartSizeReceived);
 
                 int workerId = status.MPI_SOURCE;
 
                 MPI_Recv(processWorldPart[workerId], worldPartSizeReceived, MPI_UNSIGNED_SHORT, workerId, 6, MPI_COMM_WORLD, &status);
 
-                printf("recibido processedSize %d\n", processedSize);
+                //printf("recibido processedSize %d\n", processedSize);
 
                 processedSize += worldPartSizeReceived;
 
@@ -200,15 +206,15 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                 }
                 else
                 {
-                    /*if (iteration == totalIterations - 1)
+                    if (iteration == totalIterations - 1)
                     {
                         int signal_end = END_PROCESSING;
                         MPI_Send(&signal_end, 1, MPI_INT, workerId, 1, MPI_COMM_WORLD);
-                    }*/
+                    }
                 }
             }
 
-            printf("terminado procesamiento\n");
+            //printf("terminado procesamiento\n");
 
             // Aplica el cataclismo
             cataclysm(newWorld, iteration, worldWidth, worldHeight);
@@ -233,9 +239,9 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
             SDL_UpdateWindowSurface(window);
 
             // Read event
-            if (SDL_PollEvent(&event))
+            /*if (SDL_PollEvent(&event))
                 if (event.type == SDL_QUIT)
-                    isquit = 1;
+                    isquit = 1;*/
 
             if (!autoMode)
             {
@@ -243,12 +249,12 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
                 ch = getchar();
             }
         }
-        int signal_end = END_PROCESSING;
+        /*int signal_end = END_PROCESSING;
 
         for (int j = 1; j <= numWorkers; j++)
         {
             MPI_Send(&signal_end, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
-        }
+        }*/
     }
 
     // Save file?
@@ -257,9 +263,19 @@ void executeMaster(SDL_Window *window, SDL_Renderer *renderer, int worldWidth, i
         saveImage(renderer, outputFile, worldWidth * CELL_SIZE, worldHeight * CELL_SIZE);
     }
 
+    // esto sirve para finalizar workers que fueron innecesarios, porque numworkers > numFilas
+    int signal_end = END_PROCESSING;
+    for (int j = 1; j < numProcess; j++)
+    {
+        if (!processWorldPart[j])
+        {
+            //printf("ending idle worker\n");
+            MPI_Send(&signal_end, 1, MPI_INT, j, 1, MPI_COMM_WORLD);
+        }
+    }
+
     // Game over
-    printf("Game Over!!! Press Enter to continue...");
-    ch = getchar();
+    printf("Game Over!!!\n");
 
     free(processWorldPart);
     free(world);
